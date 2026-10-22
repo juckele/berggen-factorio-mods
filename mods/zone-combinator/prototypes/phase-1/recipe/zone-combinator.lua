@@ -5,9 +5,9 @@ data:extend({
     enabled = false,
     ingredients =
     {
-      {"copper-cable", 5},
-      {"electronic-circuit", 2}
+      {type = "item", name = "copper-cable", amount = 5},
+      {type = "item", name = "electronic-circuit", amount = 2},
     },
-    result = "zone-combinator",
+    results = {{type = "item", name = "zone-combinator", amount = 1}},
   }
 })

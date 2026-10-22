@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 2.0.0
+Date: 2026-10-22
+  Changes:
+    - Updated for Factorio 2.0 and Space Exploration 0.7.
+    - Signals are written to a single logistic section, replacing any sections the combinator already had.
+    - Existing zone combinators are refreshed when the mod configuration changes.
+  Graphics:
+    - Removed the low resolution sprite; the high resolution tint mask is now the only entity sprite.
+---------------------------------------------------------------------------------------------------
 Version: 1.1.0
 Date: 2023-10-29
   Changes:

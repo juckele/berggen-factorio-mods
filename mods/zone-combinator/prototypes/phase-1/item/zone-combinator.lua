@@ -8,13 +8,11 @@ data:extend({
       {
         icon = "__base__/graphics/icons/constant-combinator.png",
         icon_size = 64,
-        icon_mipmaps = 4,
       },
       -- Mask
       {
         icon = "__zone-combinator__/graphics/icons/zone-combinator/constant-combinator-mask.png",
         icon_size = 64,
-        icon_mipmaps = 4,
         tint = zone_combinator.tint,
       },
     },
