@@ -1,0 +1,16 @@
+---------------------------------------------------------------------------------------------------
+Version: 1.0.1
+Date: 2024-10-20
+  Chages:
+    - Removes any mapping for now to fix a crash.
+---------------------------------------------------------------------------------------------------
+Version: 1.0.0
+Date: 2024-10-20
+  Chages:
+    - Update to the mod for 2.0. Thanks to notnotmelon & Wiwiweb for their quality mods!
+---------------------------------------------------------------------------------------------------
+Version: 0.1.0
+Date: 2024-09-09
+  Changes:
+    - Initial placeholder for the mod so that it can be bookmarked/installed before 2.0 and then
+      updated after 2.0 releases.

@@ -1,0 +1,10 @@
+{
+  "name": "emotiquality",
+  "version": "1.0.1",
+  "title": "Emotiquality",
+  "author": "berggen",
+  "factorio_version": "2.0",
+  "dependencies": [ "base", "quality" ],
+  "quality_required": true,
+  "description": "Replaces the names and icons of quality levels with emoticons :c, :(, :|, :), :D."
+}

@@ -39,5 +39,5 @@ The key is intentionally not accepted as a command-line argument.
 
 ### Limitations
 
-Only new releases of mods that already exist on the portal. A brand-new mod (e.g. `cheap-train`,
-which isn't on the portal yet) has to be published once by hand first.
+Only new releases of mods that already exist on the portal. A brand-new mod (e.g. `cheap-train` or
+`vulcanus-demolisher-lifecycle`, which aren't on the portal yet) has to be published once by hand first.
