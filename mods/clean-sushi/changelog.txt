@@ -1,0 +1,21 @@
+---------------------------------------------------------------------------------------------------
+Version: 0.4.0
+Date: 2023-04-18
+  Changes:
+    - Made sushi belt wire connections closer together, more out of the way, and make all
+      connection positions consistent.
+---------------------------------------------------------------------------------------------------
+Version: 0.3.0
+Date: 2023-04-18
+  Changes:
+    - Added widespread compatibility between extra belt types in mods. Please report any bugs.
+---------------------------------------------------------------------------------------------------
+Version: 0.2.0
+Date: 2023-04-16
+  Changes:
+    - Added support for fast and express transport belts.
+---------------------------------------------------------------------------------------------------
+Version: 0.1.0
+Date: 2023-04-16
+  Changes:
+    - Initial release.

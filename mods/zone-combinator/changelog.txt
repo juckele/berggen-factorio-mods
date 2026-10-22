@@ -1,0 +1,18 @@
+---------------------------------------------------------------------------------------------------
+Version: 1.1.0
+Date: 2023-10-29
+  Changes:
+    - Added x and y signal which is the x and y position the combinator is placed at.
+    - Removed debug code dumping the zone into the log when placing combinator.
+---------------------------------------------------------------------------------------------------
+Version: 1.0.0
+Date: 2023-10-28
+  Changes:
+    - Cleaned up version with all intended functionality implemented.
+    - Added 4 new virtual signals for use by the zone combinator.
+---------------------------------------------------------------------------------------------------
+Version: 0.0.1
+Date: 2023-10-10
+  Changes:
+    - Initial beta release
+    - Adds a combinator that outputs the zone details on which it's placed.
