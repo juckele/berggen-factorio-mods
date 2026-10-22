@@ -24,7 +24,8 @@ Before uploading, the script:
 - refuses if the version already exists on the portal or isn't newer than the latest release
 
 The zip contains a single `<name>_<version>/` folder. Version-control and editor files are
-always left out, as is anything matched by `package.ignore` in the mod's `info.json`
+always left out, as are `.exe`, `.bat`, `.ps1`, `.sh` and `.py` files (the portal rejects
+uploads containing executables), and anything matched by `package.ignore` in the mod's `info.json`
 (the same convention the Factorio Mod Tool Kit uses), e.g.:
 
 ```json

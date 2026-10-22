@@ -73,6 +73,10 @@ ALWAYS_IGNORE = (
     "*.zip",
 )
 
+# The portal rejects any upload containing these ("It is not permitted to
+# distribute executable files with your mod"), so they are always left out.
+EXECUTABLE_EXTENSIONS = (".exe", ".bat", ".ps1", ".sh", ".py")
+
 
 class UploadError(Exception):
     pass
@@ -179,14 +183,22 @@ def build_zip(mod_dir: Path, info: dict, dist: Path) -> Path:
     # Tool Kit (fmtk); honouring it keeps existing mods packaging the same way.
     patterns = list(ALWAYS_IGNORE) + list(info.get("package", {}).get("ignore", []))
 
-    files = []
+    files, executables = [], []
     for path in sorted(mod_dir.rglob("*")):
         if not path.is_file():
             continue
         rel = path.relative_to(mod_dir).as_posix()
         if is_ignored(rel, patterns):
             continue
+        if path.suffix.lower() in EXECUTABLE_EXTENSIONS:
+            executables.append(rel)
+            continue
         files.append((path, rel))
+
+    if executables:
+        print("Leaving out files the mod portal does not allow (executables):")
+        for rel in executables:
+            print(f"    {rel}")
 
     if not any(rel == "info.json" for _, rel in files):
         raise UploadError("info.json would be excluded from the zip by an ignore pattern")
