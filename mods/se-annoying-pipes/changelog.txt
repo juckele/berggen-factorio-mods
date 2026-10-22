@@ -1,0 +1,8 @@
+---------------------------------------------------------------------------------------------------
+Version: 0.1.0
+Date: 2023-06-23
+  Changes:
+    - Initial release.
+    - Only re-adds pipe and pipe-to-ground entities back to player collision layer.
+    - Playeres can still annoyingly slip through some pipe & building connections (like vanilla).
+---------------------------------------------------------------------------------------------------

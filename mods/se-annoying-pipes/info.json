@@ -1,0 +1,12 @@
+{
+  "name": "se-annoying-pipes",
+  "version": "0.1.0",
+  "title": "Space Exploration Annoying Pipes",
+  "author": "juckele",
+  "factorio_version": "1.1",
+  "dependencies": [	
+    "space-exploration >= 0.6",
+    "base >= 1.1"
+  ],
+  "description": "Makes pipes annoying again. Stop walking over them."
+}

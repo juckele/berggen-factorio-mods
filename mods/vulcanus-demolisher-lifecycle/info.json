@@ -1,0 +1,14 @@
+{
+  "name": "vulcanus-demolisher-lifecycle",
+  "version": "0.1",
+  "title": "Vulcanus Demolisher Lifecycle",
+  "author": "berggen",
+  "factorio_version": "2.0.61",
+  "dependencies": [
+      "base",
+      "space-age"
+  ],
+  "segmented_units_required": true,
+  "space_travel_required": true,
+  "description": "Allows demolishers to grow and spawn young."
+}
