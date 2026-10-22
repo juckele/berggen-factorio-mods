@@ -4,7 +4,7 @@ Factorio mods published by [berggen](https://mods.factorio.com/user/berggen).
 
 | Mod | Status | Factorio | Directory | Portal |
 | --- | --- | --- | --- | --- |
-| Space Exploration Zone Combinator | Current | 1.1 | [`mods/zone-combinator`](mods/zone-combinator) | [zone-combinator](https://mods.factorio.com/mod/zone-combinator) |
+| Space Exploration Zone Combinator | Current | 2.0, 2.1 | [`mods/zone-combinator`](mods/zone-combinator) | [zone-combinator](https://mods.factorio.com/mod/zone-combinator) |
 | Space Exploration Annoying Pipes | Current | 1.1 | [`mods/se-annoying-pipes`](mods/se-annoying-pipes) | [se-annoying-pipes](https://mods.factorio.com/mod/se-annoying-pipes) |
 | Emotiquality | Current | 2.0 | [`mods/emotiquality`](mods/emotiquality) | [emotiquality](https://mods.factorio.com/mod/emotiquality) |
 | Vulcanus Demolisher Lifecycle | Draft | 2.0 | [`mods/vulcanus-demolisher-lifecycle`](mods/vulcanus-demolisher-lifecycle) | not yet published |
