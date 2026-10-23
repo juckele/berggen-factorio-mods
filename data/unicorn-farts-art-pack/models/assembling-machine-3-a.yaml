@@ -974,7 +974,7 @@ objects:
     blend: 0.06
 - name: gear_0
   position: [-0.72, 0.62, 0.62]
-  rotation: [0, -38, 0.0]
+  rotation: [0, -38, 0]
   parts:
   - shape: lathe
     profile:
@@ -1098,7 +1098,7 @@ objects:
     material: *id001
 - name: gear_1
   position: [-0.5969, 0.64, 0.4624]
-  rotation: [0, -38, 0.0]
+  rotation: [0, -38, 0]
   parts:
   - shape: lathe
     profile:
@@ -1222,7 +1222,7 @@ objects:
     material: *id001
 - name: gear_2
   position: [-0.4737, 0.66, 0.3048]
-  rotation: [0, -38, 0.0]
+  rotation: [0, -38, 0]
   parts:
   - shape: lathe
     profile:
@@ -1379,7 +1379,7 @@ objects:
     material: *id002
 - name: handwheel
   position: [-0.98, 0.95, -0.15]
-  rotation: [-40, -20, 0.0]
+  rotation: [-40, -20, 0]
   parts:
   - shape: torus
     major: 0.24
@@ -1461,7 +1461,7 @@ objects:
     material: &id007 {color: '#a65f37', roughness: 0.4, specular: 0.55}
 - name: crank_arm
   position: [-0.95, 1.02, -1.08]
-  rotation: [-50, 0, -28.0]
+  rotation: [-50, 0, -28]
   parts:
   - shape: lathe
     profile:
@@ -1572,7 +1572,7 @@ objects:
     material: *id006
 - name: back_gear
   position: [0.95, 1.06, -1.32]
-  rotation: [0, 0, 0.0]
+  rotation: [0, 0, 0]
   parts:
   - shape: lathe
     profile:
@@ -2089,7 +2089,7 @@ objects:
     material: *id006
 - name: mid_gear
   position: [-0.25, 0.62, 0.05]
-  rotation: [-90, 0, 0.0]
+  rotation: [-90, 0, 0]
   parts:
   - shape: lathe
     profile:
@@ -2193,7 +2193,7 @@ objects:
     material: *id001
 - name: mid_gear_2
   position: [-0.02, 0.6, 0.22]
-  rotation: [-90, 0, 0.0]
+  rotation: [-90, 0, 0]
   parts:
   - shape: lathe
     profile:

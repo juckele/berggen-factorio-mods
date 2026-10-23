@@ -280,13 +280,23 @@ def tub_tapered(colour, wall_h=0.86, front_h=0.6, rake=24, foot=1.4):
     objs.append(obj("plinth", pl))
     # back wall: three leaning plates (slightly wider so the corners overlap)
     for i in range(3):
-        objs.append(obj(f"wall_back_{i}", wall_plate(0.98, wall_h, t, A, M["steel"]), pos=(-0.94 + i * 0.94, base, -foot + t / 2), rot=(-LEAN, 180, 0)))
+        objs.append(obj(f"wall_back_{i}", wall_plate(0.94 if i == 1 else 0.86, wall_h, t, A, M["steel"]), pos=((-0.9 + i * 0.9), base, -foot + t / 2), rot=(-LEAN, 180, 0)))
     side_len = 2 * foot - CH
     for sx, nm in ((-1, "left"), (1, "right")):
         seg = side_len / 3
         for i in range(3):
             z = -foot + seg * (i + 0.5)
-            objs.append(obj(f"wall_{nm}_{i}", wall_plate(seg * 1.02, wall_h, t, A, M["steel"], (2, 2)), pos=(sx * (foot - t / 2), base, z), rot=(-LEAN, sx * 90, 0)))
+            w_ = seg * (0.9 if i == 0 else 1.0)
+            objs.append(obj(f"wall_{nm}_{i}", wall_plate(w_, wall_h, t, A, M["steel"], (2, 2)), pos=(sx * (foot - t / 2), base, z + (seg - w_) / 2), rot=(-LEAN, sx * 90, 0)))
+        # back corner post along the line where the two leaning walls meet (covers the plates' corners)
+        p0 = (sx * foot, base, -foot)
+        p1 = (sx * (foot - inset), top + 0.04, -foot + inset)
+        v = [p1[i] - p0[i] for i in range(3)]
+        ln = math.sqrt(sum(c * c for c in v))
+        ax_ = math.degrees(math.asin(v[2] / ln))
+        bz = math.degrees(math.atan2(-v[0], v[1]))
+        objs.append(obj(f"post_{nm}", [box((0.17, ln, 0.17), (0, 0, 0), M["iron"]), box((0.21, 0.06, 0.21), (0, ln / 2 - 0.03, 0), M["iron_dark"])],
+                        pos=tuple((p0[i] + p1[i]) / 2 - (0.04 * sx if i == 0 else 0) + (0.04 if i == 2 else 0) for i in range(3)), rot=(ax_, 0, bz)))
         # slanted chamfer panel at the front corner, leaning like the rest
         objs.append(obj(f"wall_{nm}_chamfer", wall_plate(d * 1.02, wall_h * 0.9, t, Ad, M["steel"], (2, 2)),
                         pos=(sx * (foot - CH / 2 - 0.03), base, foot - CH / 2 - 0.03), rot=(-LEAN - 6, sx * 45, 0)))

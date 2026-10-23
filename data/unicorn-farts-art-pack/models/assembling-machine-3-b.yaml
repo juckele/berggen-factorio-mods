@@ -1093,7 +1093,7 @@ objects:
     material: *id006
 - name: gear_0
   position: [-0.72, 0.6, 0.6]
-  rotation: [0, -38, 0.0]
+  rotation: [0, -38, 0]
   parts:
   - shape: lathe
     profile:
@@ -1217,7 +1217,7 @@ objects:
     material: *id001
 - name: gear_1
   position: [-0.5969, 0.62, 0.4424]
-  rotation: [0, -38, 0.0]
+  rotation: [0, -38, 0]
   parts:
   - shape: lathe
     profile:
@@ -1341,7 +1341,7 @@ objects:
     material: *id001
 - name: gear_2
   position: [-0.4737, 0.64, 0.2848]
-  rotation: [0, -38, 0.0]
+  rotation: [0, -38, 0]
   parts:
   - shape: lathe
     profile:
@@ -1498,7 +1498,7 @@ objects:
     material: *id002
 - name: handwheel
   position: [-0.95, 1.0, -0.1]
-  rotation: [-40, -20, 0.0]
+  rotation: [-40, -20, 0]
   parts:
   - shape: torus
     major: 0.24
@@ -1633,7 +1633,7 @@ objects:
     material: *id006
 - name: flywheel
   position: [0.7, 1.52, -0.95]
-  rotation: [-15, 0, 0.0]
+  rotation: [-15, 0, 0]
   parts:
   - shape: torus
     major: 0.3
@@ -1740,7 +1740,7 @@ objects:
     material: *id004
 - name: crank_arm
   position: [-0.7, 1.32, -0.6]
-  rotation: [-50, 0, -28.0]
+  rotation: [-50, 0, -28]
   parts:
   - shape: lathe
     profile:
