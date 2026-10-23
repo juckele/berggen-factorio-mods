@@ -1,6 +1,6 @@
 # Anti-jam Stack Inserter
 
-A purple stack inserter that doesn't wait for a full hand, so belt stacking works on lines
+An anti-jam stack inserter that doesn't wait for a full hand, so belt stacking works on lines
 carrying mixed quality or spoilable items.
 
 The Space Age stack inserter waits until its hand is full before it swings. A hand holds
