@@ -1,0 +1,12 @@
+{
+  "name": "anti-jam-stack-inserter",
+  "version": "0.1.0",
+  "title": "Anti-jam Stack Inserter",
+  "author": "berggen",
+  "factorio_version": "2.1",
+  "dependencies": [
+    "base >= 2.1.0",
+    "space-age >= 2.1.0"
+  ],
+  "description": "Adds a purple stack inserter that swings without waiting for a full hand, so it can't jam waiting for items that never come."
+}
