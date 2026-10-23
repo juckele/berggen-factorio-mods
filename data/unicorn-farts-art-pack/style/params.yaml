@@ -1,0 +1,61 @@
+# claude-artist style recipe for the unicorn farts art pack: soft pastel, full
+# coverage, cut out cleanly along the entity's silhouette so the sprite can be
+# laid over any ground or neighbouring entity without runtime blending.
+#   artist run <scene> --style data/unicorn-farts-art-pack/style/params.yaml -o out/...
+
+paper:
+  color: "#6f6458"      # only used for the preview sheet; never shows inside the sprite
+  tooth: pastel
+  seed: 0
+  texture: 0.0
+
+render:
+  ss: 2
+  shadow_samples: 16
+  sky_samples: 128
+
+lines:
+  crease_angle: 35
+  corner_angle: 55
+  smooth_sigma: 2.0
+
+sketch:
+  contour_passes: 1
+  construction: false
+  envelope: false
+
+ink:
+  hatch: {enabled: false}
+  texture: false
+
+values:
+  levels: 4
+  simplify: 7
+  min_area: 120
+
+colour:
+  script: cool_shadows
+  fallback_script: cool_shadows
+  light_strength: 0.45
+  halftone: 0.32
+  support_key: 0.72
+  max_pigments: 4
+
+paint:
+  medium: pastel
+  coverage: full
+  edge: {aa: 0.6, fade: 0.007, alpha: 0.7}   # strokes run past the silhouette and thin out over ~5 px (concept scale)
+  tooth: {grain: 0.45}
+  sticks: {count: 26, neighbour: 0.35}
+  hatch: {angle: 58, groups: 0.5, pressure: [0.55, 0.85], push: {shadow: [-8.0, 3.0], light: [5.0, 1.0], value: 1.5}}
+  detail: {name: detail, kind: tip, radius: 0.0035, length: [2, 8], threshold: 0.1, blur: 0.6, grid: 1.0, bristles: 3, pressure: [0.65, 0.9], jitter: 0.5, hatch_mix: 0.0}
+  pencil:
+    width: 0.0019
+    pressure: 1.0
+    darken: 0.18
+    light_loss: 0.3
+    types: {silhouette: 1.2, contact: 1.0, crease: 0.7, material: 0.45, mark: 0.6}
+
+finish:
+  pencil: {opacity: 0.0}
+  ink: {opacity: 0.0}
