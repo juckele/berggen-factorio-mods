@@ -172,6 +172,9 @@ def main():
     want = scaled(load(src / "frames" / "frame_00.png"))
     a = np.asarray(canvas).astype(np.float32)
     b = np.asarray(want).astype(np.float32)
+    # compare premultiplied: a fully transparent pixel's colour means nothing
+    a[..., :3] *= a[..., 3:] / 255
+    b[..., :3] *= b[..., 3:] / 255
     diff = np.abs(a - b).max(-1)
     sheet = Image.new("RGBA", (Ws * 3, Hs), (118, 98, 72, 255))
     sheet.alpha_composite(canvas, (0, 0))
