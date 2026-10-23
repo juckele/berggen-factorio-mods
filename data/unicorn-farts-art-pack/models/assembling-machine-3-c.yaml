@@ -2546,17 +2546,17 @@ objects:
     rotation: [0, 0, 0]
     material: *id003
 - name: motor_piston
-  position: [-0.54, 1.0017, -0.63]
+  position: [-0.54, 1.0192, -0.63]
   rotation: [0, 0, 0]
   parts:
   - shape: lathe
     profile:
-    - [0, -0.23835921554035228]
-    - [0.045, -0.23835921554035228]
-    - [0.045, 0.23835921554035228]
-    - [0, 0.23835921554035228]
+    - [0, -0.2658592155403523]
+    - [0.045, -0.2658592155403523]
+    - [0.045, 0.2658592155403523]
+    - [0, 0.2658592155403523]
     segments: 16
-    position: [0, -0.2384, 0]
+    position: [0, -0.2659, 0]
     rotation: [0, 0, 0]
     material: *id003
   - shape: lathe
@@ -2888,89 +2888,141 @@ objects:
     position: [0.82, 0.8817, -0.42]
     rotation: [0, 0, 0]
     material: *id005
-- name: governor
-  position: [0.0, 0.9467, -0.93]
-  rotation: [-90, 0, 0]
+- name: back_gear
+  position: [0.05, 1.1767, -0.96]
+  rotation: [0, 0, 0]
   parts:
   - shape: lathe
     profile:
-    - [0, -0.25]
-    - [0.026, -0.25]
-    - [0.026, 0.25]
-    - [0, 0.25]
-    segments: 14
-    position: [0, 0, 0.25]
+    - [0.132, -0.05]
+    - [0.2, -0.05]
+    - [0.2, 0.05]
+    - [0.132, 0.05]
+    segments: 64
+    position: [0, 0, 0]
     rotation: [90, 0, 0]
-    material: *id003
-  - shape: sphere
-    radius: 0.045
-    segments: 16
-    rings: 8
-    position: [0, 0, 0.51]
-    material: *id005
+    material: *id001
+  - shape: box
+    size: [0.04, 0.172, 0.07]
+    position: [0.0, 0.086, 0]
+    rotation: [0, 0, 0.0]
+    material: *id001
+  - shape: box
+    size: [0.04, 0.172, 0.07]
+    position: [-0.0818, 0.0266, 0]
+    rotation: [0, 0, 72.0]
+    material: *id001
+  - shape: box
+    size: [0.04, 0.172, 0.07]
+    position: [-0.0505, -0.0696, 0]
+    rotation: [0, 0, 144.0]
+    material: *id001
+  - shape: box
+    size: [0.04, 0.172, 0.07]
+    position: [0.0505, -0.0696, 0]
+    rotation: [0, 0, 216.0]
+    material: *id001
+  - shape: box
+    size: [0.04, 0.172, 0.07]
+    position: [0.0818, 0.0266, 0]
+    rotation: [0, 0, 288.0]
+    material: *id001
+  - shape: box
+    size: [0.0779, 0.044, 0.1]
+    position: [0.2154, 0.0, 0]
+    rotation: [0, 0, -90.0]
+    material: *id001
+  - shape: box
+    size: [0.0779, 0.044, 0.1]
+    position: [0.1743, 0.1266, 0]
+    rotation: [0, 0, -54.0]
+    material: *id001
+  - shape: box
+    size: [0.0779, 0.044, 0.1]
+    position: [0.0666, 0.2049, 0]
+    rotation: [0, 0, -18.0]
+    material: *id001
+  - shape: box
+    size: [0.0779, 0.044, 0.1]
+    position: [-0.0666, 0.2049, 0]
+    rotation: [0, 0, 18.0]
+    material: *id001
+  - shape: box
+    size: [0.0779, 0.044, 0.1]
+    position: [-0.1743, 0.1266, 0]
+    rotation: [0, 0, 54.0]
+    material: *id001
+  - shape: box
+    size: [0.0779, 0.044, 0.1]
+    position: [-0.2154, 0.0, 0]
+    rotation: [0, 0, 90.0]
+    material: *id001
+  - shape: box
+    size: [0.0779, 0.044, 0.1]
+    position: [-0.1743, -0.1266, 0]
+    rotation: [0, 0, 126.0]
+    material: *id001
+  - shape: box
+    size: [0.0779, 0.044, 0.1]
+    position: [-0.0666, -0.2049, 0]
+    rotation: [0, 0, 162.0]
+    material: *id001
+  - shape: box
+    size: [0.0779, 0.044, 0.1]
+    position: [0.0666, -0.2049, 0]
+    rotation: [0, 0, 198.0]
+    material: *id001
+  - shape: box
+    size: [0.0779, 0.044, 0.1]
+    position: [0.1743, -0.1266, 0]
+    rotation: [0, 0, 234.0]
+    material: *id001
   - shape: lathe
     profile:
-    - [0, -0.025]
-    - [0.055, -0.025]
-    - [0.055, 0.025]
-    - [0, 0.025]
-    segments: 20
-    position: [0, 0, 0.18]
+    - [0, -0.07500000000000001]
+    - [0.052000000000000005, -0.07500000000000001]
+    - [0.052000000000000005, 0.07500000000000001]
+    - [0, 0.07500000000000001]
+    segments: 32
+    position: [0, 0, 0]
     rotation: [90, 0, 0]
-    material: *id005
-  - shape: box
-    size: [0.026, 0.2129, 0.026]
-    position: [-0.0716, 0.0, 0.3912]
-    rotation: [-47.75466539515347, 0, 90.0]
-    material: *id005
-  - shape: sphere
-    radius: 0.065
-    segments: 20
-    rings: 10
-    position: [-0.1431, 0.0, 0.3124]
     material: *id007
-  - shape: box
-    size: [0.018, 0.2053, 0.018]
-    position: [-0.0644, 0.0, 0.2817]
-    rotation: [-81.95905927464577, 0, -90.0]
-    material: *id003
-  - shape: box
-    size: [0.026, 0.2129, 0.026]
-    position: [0.0716, 0.0, 0.3912]
-    rotation: [-47.75466539515347, 0, -90.0]
-    material: *id005
-  - shape: sphere
-    radius: 0.065
-    segments: 20
-    rings: 10
-    position: [0.1431, 0.0, 0.3124]
-    material: *id007
-  - shape: box
-    size: [0.018, 0.2053, 0.018]
-    position: [0.0644, 0.0, 0.2817]
-    rotation: [-81.95905927464577, 0, 90.0]
-    material: *id003
-- name: governor_base
+  - shape: lathe
+    profile:
+    - [0, -0.085]
+    - [0.020000000000000004, -0.085]
+    - [0.020000000000000004, 0.085]
+    - [0, 0.085]
+    segments: 16
+    position: [0, 0, 0]
+    rotation: [90, 0, 0]
+    material: *id001
+- name: back_gear_block
   position: [0, 0, 0]
   rotation: [0, 0, 0]
   parts:
   - shape: box
-    size: [0.2, 0.1, 0.2]
-    position: [0.0, 0.8967, -0.93]
+    size: [0.34, 0.1, 0.24]
+    position: [0.05, 0.8967, -0.96]
+    rotation: [0, 0, 0]
+    material: *id005
+  - shape: box
+    size: [0.08, 0.33, 0.06]
+    position: [0.05, 1.0117, -1.06]
     rotation: [0, 0, 0]
     material: *id005
   - shape: lathe
     profile:
-    - [0, -0.02]
-    - [0.07, -0.02]
-    - [0.07, 0.02]
-    - [0, 0.02]
-    segments: 20
-    position: [0.0, 0.9467, -0.93]
-    rotation: [0, 0, 0]
-    material: *id001
+    - [0, -0.1]
+    - [0.045, -0.1]
+    - [0.045, 0.1]
+    - [0, 0.1]
+    segments: 16
+    position: [0.05, 1.1767, -1.01]
+    rotation: [90, 0, 0]
+    material: *id003
 - name: handwheel_valve
-  position: [0.86, 0.8467, -0.05]
+  position: [0.88, 0.8467, 0.12]
   rotation: [0, 0, 0]
   parts:
   - shape: lathe
@@ -2982,14 +3034,14 @@ objects:
     segments: 14
     position: [0, 0.07, 0]
     rotation: [0, 0, 0]
-    material: *id007
+    material: *id003
   - shape: box
     size: [0.14, 0.08, 0.14]
     position: [0, 0.02, 0]
     rotation: [0, 0, 0]
     material: *id005
 - name: handwheel
-  position: [0.86, 1.0067, -0.05]
+  position: [0.88, 1.0067, 0.12]
   rotation: [-70, 0, 0]
   parts:
   - shape: torus
@@ -3000,7 +3052,7 @@ objects:
     sides: 10
     position: [0, 0, 0]
     rotation: [0, 0, 0]
-    material: &id008 {color: '#8c8c88', roughness: 0.78, specular: 0.1}
+    material: &id008 {color: '#9c8250', roughness: 0.7, specular: 0.15}
   - shape: lathe
     profile:
     - [0, -0.08]
@@ -3050,7 +3102,7 @@ objects:
     segments: 24
     position: [0, 0, 0]
     rotation: [90, 0, 0]
-    material: {color: '#9c8250', roughness: 0.7, specular: 0.15}
+    material: {color: '#8c8c88', roughness: 0.78, specular: 0.1}
 - name: exhaust
   position: [-0.86, 0.8467, 0.02]
   rotation: [0, 0, 0]

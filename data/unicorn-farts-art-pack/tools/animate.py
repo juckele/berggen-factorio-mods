@@ -48,8 +48,15 @@ def gifs(frames_dir: Path, out: Path, n: int, fps: float):
         c = gb.copy(); c.alpha_composite(im); big.append(c.convert("RGB"))
         c2 = gs.copy(); c2.alpha_composite(sm); small.append(c2.resize((c2.width * 2, c2.height * 2), Image.NEAREST).convert("RGB"))
     dur = int(1000 / fps)
-    big[0].save(out / "anim.gif", save_all=True, append_images=big[1:], duration=dur, loop=0)
-    small[0].save(out / "anim_sprite_2x.gif", save_all=True, append_images=small[1:], duration=dur, loop=0)
+    for frames, name in ((big, "anim.gif"), (small, "anim_sprite_2x.gif")):
+        # One palette for every frame and no dithering: a GIF otherwise quantises each frame on its
+        # own, and still pixels shimmer although the frames themselves are identical there.
+        strip = Image.new("RGB", (frames[0].width, frames[0].height * len(frames)))
+        for i, f in enumerate(frames):
+            strip.paste(f, (0, i * f.height))
+        pal = strip.quantize(colors=255, method=Image.Quantize.MEDIANCUT)
+        q = [f.quantize(palette=pal, dither=Image.Dither.NONE) for f in frames]
+        q[0].save(out / name, save_all=True, append_images=q[1:], duration=dur, loop=0, optimize=False)
     print("wrote", out / "anim.gif", out / "anim_sprite_2x.gif")
 
 
@@ -62,8 +69,12 @@ def main():
     ap.add_argument("--fps", type=float, default=15)
     ap.add_argument("--style", default=str(PACK / "style" / "params_bold.yaml"))
     ap.add_argument("--reuse", action="store_true", help="keep finished renders and paintings")
+    ap.add_argument("--gifs-only", action="store_true", help="only rebuild the GIFs from existing frames")
     args = ap.parse_args()
     out = Path(args.out).resolve()
+    if args.gifs_only:
+        gifs(out / "layers" / "frames", out, args.frames, args.fps)
+        return
     scenes = out / "scenes"
     subprocess.run([sys.executable, str(PACK / "models" / "build_models.py"), "--only", args.machine, "--frames", str(args.frames), "--out", str(scenes)], check=True)
     if not (scenes / "animation.yaml").exists():

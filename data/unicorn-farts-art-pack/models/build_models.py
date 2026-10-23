@@ -119,20 +119,21 @@ def rivets_line(a, b, n, mat, r=0.022, normal_off=(0, 0, 0)):
 # so a moving part (gear, wheel, crank) is posed by changing one rotation.
 
 
-def gear_parts(radius, teeth, thick, mat, hub_mat, spokes=0, bore=True):
-    """Gear in the local XY plane, axle along local z, centred at the origin."""
+def gear_parts(radius, teeth, thick, mat, hub_mat, spokes=0, bore=True, rim=0.22, tooth_w=0.5):
+    """Gear in the local XY plane, axle along local z, centred at the origin.
+    spokes: a spoked wheel with a rim `rim` x radius deep; tooth_w: tooth width as a fraction of the pitch."""
     parts = []
-    rim_w = radius * (0.22 if spokes else 1.0)
+    rim_w = radius * (rim if spokes else 1.0)
     if spokes:
-        parts.append(tor(radius - rim_w * 0.5, rim_w * 0.5, (0, 0, 0), mat, seg=64, sides=10))
-        # flatten: a torus reads as a rim; add a thin disc web between rim and hub
+        # a flat rim band (a gear's rim, not a round wheel's tyre)
+        parts.append(lathe([(radius - rim_w, -thick / 2), (radius, -thick / 2), (radius, thick / 2), (radius - rim_w, thick / 2)], (0, 0, 0), mat, rot=(90, 0, 0), seg=64))
         for i in range(spokes):
             a = 360.0 * i / spokes
-            parts.append(box((radius * 0.16, radius * 0.86, thick * 0.6), (0.43 * radius * math.cos(math.radians(a + 90)), 0.43 * radius * math.sin(math.radians(a + 90)), 0), mat, rot=(0, 0, a)))
+            parts.append(box((radius * 0.2, radius * 0.86, thick * 0.7), (0.43 * radius * math.cos(math.radians(a + 90)), 0.43 * radius * math.sin(math.radians(a + 90)), 0), mat, rot=(0, 0, a)))
     else:
         parts.append(cyl(radius, thick, (0, 0, 0), mat, rot=(90, 0, 0), seg=64))
         parts.append(cyl(radius * 0.72, thick * 1.15, (0, 0, 0), mat, rot=(90, 0, 0), seg=48))  # raised web ring
-    tw = 2 * math.pi * radius / max(teeth, 1) * 0.5
+    tw = 2 * math.pi * radius / max(teeth, 1) * tooth_w
     th = radius * (0.22 if teeth <= 18 else 0.16)  # chunky teeth read at sprite size
     for i in range(teeth):
         a = 360.0 * i / teeth
@@ -473,24 +474,6 @@ def chain_loop(phase, a, b, link=0.07, sprocket_r=0.1, paint=False, info=None):
 
 MATTE_STEEL = {"color": "#8c8c88", "roughness": 0.78, "specular": 0.1}
 MATTE_BRASS = {"color": "#9c8250", "roughness": 0.7, "specular": 0.15}
-
-
-def governor_parts(arm=0.2, ball=0.065, height=0.5, spread=38.0):
-    """A centrifugal (Watt) governor in a local frame whose z is the spindle:
-    a spindle with a cap, two arms hinged at the top swinging out heavy balls,
-    links down to a sliding collar. Turns about local z; symmetric every half turn."""
-    parts = [cyl(0.026, height, (0, 0, height / 2), M["steel"], rot=(90, 0, 0), seg=14),
-             sph(0.045, (0, 0, height + 0.01), M["iron"], seg=16),
-             cyl(0.055, 0.05, (0, 0, height * 0.36), M["iron"], rot=(90, 0, 0), seg=20)]  # the collar
-    hinge = (0.0, 0.0, height * 0.94)
-    for sx in (-1, 1):
-        s_, c_ = math.sin(math.radians(spread)), math.cos(math.radians(spread))
-        bc = (sx * (0.02 + arm * s_), 0.0, hinge[2] - arm * c_)  # ball centre
-        parts.append(_beam(hinge, bc, (0.026, 0.026), M["iron"]))
-        parts.append(sph(ball, bc, M["brass"], seg=20))
-        mid = (hinge[0] + (bc[0] - hinge[0]) * 0.55, 0.0, hinge[2] + (bc[2] - hinge[2]) * 0.55)
-        parts.append(_beam(mid, (sx * 0.05, 0.0, height * 0.36), (0.018, 0.018), M["steel"]))  # link to the collar
-    return parts
 
 
 def motor(tier, phase, pos=(0.35, 0.36, 0.05), mat=None):
@@ -910,7 +893,8 @@ def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
     roof, top = roof_flat(colour, [slot, hatch, vent])
     objs += [roof] + gears
     # under the hatch: a motor whose piston comes up through the roof and bobs
-    bob = 0.07 * (0.5 + 0.5 * math.sin(phase * 2 * math.pi))
+    stroke = 0.105  # piston travel (tiles)
+    bob = stroke * (0.5 + 0.5 * math.sin(phase * 2 * math.pi))
     mc = (-0.54, o["floor"], -0.63)
     body = [cyl(0.2, 0.4, (0, 0.2, 0), paint_mat(colour, dark=True), seg=40)]
     for k in range(4):
@@ -919,10 +903,10 @@ def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
     objs.append(obj("motor", body, pos=mc))
     # the piston is rigid and only translates (a layered animation paints it once and slides it)
     head0 = (mc[0], top + 0.12, mc[2])
-    rod = head0[1] - (mc[1] + 0.42) + 0.1  # reaches 0.1 into the motor at the bottom of its stroke
+    rod = head0[1] - (mc[1] + 0.42) + stroke + 0.05  # still inside the motor at the top of its stroke
     objs.append(obj("motor_piston", [cyl(0.045, rod, (0, -rod / 2, 0), M["steel"], seg=16), cyl(0.12, 0.08, (0, 0, 0), M["brass"], seg=32)],
                     pos=(head0[0], head0[1] + bob, head0[2])))
-    bob0 = 0.07 * 0.5
+    bob0 = stroke * 0.5
     info.setdefault("slide", {})["motor_piston"] = {"offset": [0.0, bob - bob0, 0.0], "anchor": list(head0)}
     # vent slats over the front-right cutaway, a dark fan housing below
     objs.append(obj("vent_slats", [box((0.46, 0.025, 0.05), (0.62, top - 0.02, 0.33 + 0.07 * k), M["steel"], rot=(35, 0, 0)) for k in range(5)]))
@@ -931,15 +915,17 @@ def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
     if tier >= 2:
         objs += chain_loop(phase, a=(0.15, top + 0.07, -0.7), b=(0.82, top + 0.07, -0.42), paint=paint_chain, info=info)
         objs.append(obj("chain_posts", [cyl(0.05, 0.07, (0.15, top + 0.035, -0.7), M["iron"], seg=12), cyl(0.05, 0.07, (0.82, top + 0.035, -0.42), M["iron"], seg=12)]))
-    # a centrifugal governor at the back: flyballs on a spindle, turning (it repeats every half turn)
-    gov_pos = (0.0, top + 0.1, -0.93)
-    gov_ang = phase * 180.0
-    objs.append(obj("governor", spun(governor_parts(), gov_ang), pos=gov_pos, rot=(-90, 0, 0)))
-    objs.append(obj("governor_base", [box((0.2, 0.1, 0.2), (gov_pos[0], top + 0.05, gov_pos[2]), M["iron"]),
-                                      cyl(0.07, 0.04, (gov_pos[0], top + 0.1, gov_pos[2]), M["iron_dark"], seg=20)]))
-    objs.append(obj("handwheel_valve", [cyl(0.05, 0.14, (0, 0.07, 0), M["brass"], seg=14), box((0.14, 0.08, 0.14), (0, 0.02, 0), M["iron"])], pos=(0.86, top, -0.05)))
-    hw_pos, hw_rot = (0.86, top + 0.16, -0.05), (-70, 0, 0)
-    objs.append(obj("handwheel", spun(handwheel_parts(0.16, MATTE_STEEL, MATTE_BRASS, rim=0.2, spoke=0.14), phase * 90), pos=hw_pos, rot=hw_rot))
+    # a chunky dark gear at the back, standing in a bearing block (vanilla's gear on the back wall)
+    bg_r, bg_teeth = 0.2, 10
+    bg_pos = (0.05, top + bg_r + 0.13, -0.96)
+    bg_ang = spin(phase, bg_teeth, -1)
+    objs.append(obj("back_gear", spun(gear_parts(bg_r, bg_teeth, 0.1, M["iron_dark"], M["brass"], spokes=5, rim=0.34, tooth_w=0.62), bg_ang), pos=bg_pos))
+    objs.append(obj("back_gear_block", [box((0.34, 0.1, 0.24), (bg_pos[0], top + 0.05, bg_pos[2]), M["iron"]),  # the block
+                                        box((0.08, bg_pos[1] - top, 0.06), (bg_pos[0], (top + bg_pos[1]) / 2, bg_pos[2] - 0.1), M["iron"]),  # cheek behind
+                                        cyl(0.045, 0.2, (bg_pos[0], bg_pos[1], bg_pos[2] - 0.05), M["steel"], rot=(90, 0, 0), seg=16)]))  # the axle
+    objs.append(obj("handwheel_valve", [cyl(0.05, 0.14, (0, 0.07, 0), M["steel"], seg=14), box((0.14, 0.08, 0.14), (0, 0.02, 0), M["iron"])], pos=(0.88, top, 0.12)))
+    hw_pos, hw_rot = (0.88, top + 0.16, 0.12), (-70, 0, 0)
+    objs.append(obj("handwheel", spun(handwheel_parts(0.16, MATTE_BRASS, MATTE_STEEL, rim=0.2, spoke=0.14), phase * 90), pos=hw_pos, rot=hw_rot))
     objs.append(obj("exhaust", [cyl(0.08, 0.34, (0, 0.17, 0), M["iron"], seg=24), cyl(0.11, 0.05, (0, 0.36, 0), M["iron_dark"], seg=24),
                                 cyl(0.1, 0.06, (0, 0.03, 0), M["iron"], seg=24)], pos=(-0.86, top, 0.02)))
     objs.append(obj("roof_pipes", [cyl(0.04, 0.9, (-0.95, top + 0.05, -0.45), M["copper"], rot=(90, 0, 0), seg=14),
@@ -948,7 +934,7 @@ def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
     objs.append(obj("gauge", [cyl(0.09, 0.04, (0, 0, 0), M["brass"], rot=(90, 0, 0), seg=28), cyl(0.07, 0.05, (0, 0, 0.005), M["glass"], rot=(90, 0, 0), seg=28),
                               box((0.05, 0.1, 0.05), (0, -0.08, -0.02), M["iron"])], pos=(0.1, top + 0.12, 0.85), rot=(-35, 0, 0)))
     info.setdefault("rotors", [])
-    info["rotors"] = [o["name"] for o in gears if not o["name"].endswith("_bearing")] + ["handwheel", "governor"] + info["rotors"]
+    info["rotors"] = [o["name"] for o in gears if not o["name"].endswith("_bearing")] + ["handwheel", "back_gear"] + info["rotors"]
     # where each turning part is and how far it has turned, so its strokes can turn with it
     an = info.setdefault("anchors", {})
     for o in gears:
@@ -961,8 +947,7 @@ def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
         an[o["name"]] = [{"center": list(o["position"]), "axis": _to_world(R, (0, 0, 0), (0, 0, 1)), "ref": _to_world(R, (0, 0, 0), (1, 0, 0)), "angle": ang}]
     R = _euler(*hw_rot)
     an["handwheel"] = [{"center": list(hw_pos), "axis": _to_world(R, (0, 0, 0), (0, 0, 1)), "ref": _to_world(R, (0, 0, 0), (1, 0, 0)), "angle": phase * 90}]
-    R = _euler(-90, 0, 0)
-    an["governor"] = [{"center": list(gov_pos), "axis": _to_world(R, (0, 0, 0), (0, 0, 1)), "ref": _to_world(R, (0, 0, 0), (1, 0, 0)), "angle": gov_ang}]
+    an["back_gear"] = [{"center": list(bg_pos), "axis": [0.0, 0.0, 1.0], "ref": [1.0, 0.0, 0.0], "angle": bg_ang}]
     return objs
 
 
@@ -1110,8 +1095,13 @@ VARIANTS["3-c"] = ("c", 3, machine_c, "lime")
 # The moving pieces are painted on their own sheets over the still machine: give
 # them thorough coverage (crisp, nearly opaque edges, little grain), so nothing
 # of what is behind them shows through.
-MOVER_OVERRIDES = ["paint.edge.fade=0.0015", "paint.edge.alpha=0.45", "paint.edge.aa=0.5", "paint.tooth.grain=0.12",
-                   "paint.blend.strength=0.15", "paint.highlights.enabled=false"]
+# No stroke fringe and no paper grain on moving parts: both are fixed on the screen, so a part
+# moving through them makes its edges crawl and its surface shimmer.
+MOVER_OVERRIDES = ["paint.edge.fade=0", "paint.edge.alpha=0.45", "paint.edge.aa=0.5", "paint.tooth.grain=0",
+                   "paint.blend.strength=0.15", "paint.highlights.enabled=false",
+                   # steady edges as parts turn: true sub-pixel coverage, and outlines that don't come and go
+                   "render.ss=3", "paint.edge.coverage=true",
+                   "lines.dither.enabled=false", "paint.pencil.breaks=0", "paint.pencil.light_loss=0"]
 
 
 def write_animation_spec(out, key, tier, fn, colour, infos):
