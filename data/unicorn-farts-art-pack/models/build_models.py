@@ -408,6 +408,66 @@ def chain_drive(tier, phase, a=(0.0, 0.95, -0.62), b=(1.05, 0.95, -0.98)):
     return [obj("chain", parts, pos=a, rot=(-90, yaw, 0))]
 
 
+def _euler(rx, ry, rz):
+    """Rotation matrix (rows) for the scene's XYZ Euler angles in degrees: Rz Ry Rx."""
+    x, y, z = (math.radians(v) for v in (rx, ry, rz))
+    Rx = [[1, 0, 0], [0, math.cos(x), -math.sin(x)], [0, math.sin(x), math.cos(x)]]
+    Ry = [[math.cos(y), 0, math.sin(y)], [0, 1, 0], [-math.sin(y), 0, math.cos(y)]]
+    Rz = [[math.cos(z), -math.sin(z), 0], [math.sin(z), math.cos(z), 0], [0, 0, 1]]
+
+    def mul(A, B):
+        return [[sum(A[i][k] * B[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+
+    return mul(Rz, mul(Ry, Rx))
+
+
+def _to_world(R, pos, v):
+    return [pos[i] + sum(R[i][k] * v[k] for k in range(3)) for i in range(3)]
+
+
+def chain_loop(phase, a, b, link=0.07, sprocket_r=0.1, paint=False, info=None):
+    """A chain loop between two sprockets, built for layered animation: each
+    straight run is its own object (its links only slide along the run, the two
+    runs in opposite directions), the sprockets another (they turn).
+
+    paint=True builds the runs for painting once: unshifted, with two extra
+    pitches of links past each end, so the painted run can slide by up to the
+    cycle's travel and still be filled when clipped back to the span between
+    the sprocket centres. info (a dict) collects each run's world offset, clip
+    polygon and anchor."""
+    dx, dz = b[0] - a[0], b[2] - a[2]
+    L = math.hypot(dx, dz)
+    yaw = math.degrees(math.atan2(-dz, dx))
+    n = max(2, int(L / link))
+    p = L / n
+    travel = phase * TEETH_PER_CYCLE * p  # the sprockets advance TEETH_PER_CYCLE teeth; the links as many pitches
+    R = _euler(-90, yaw, 0)
+    objs = []
+    for k, side in enumerate((1, -1)):
+        direction = -side  # a sprocket turning positive carries its +y side towards -x
+        lo, hi = (-2 * p, L + 2 * p) if paint else (0.0, L)
+        parts = []
+        for i in range(int(math.floor(lo / p)) - 3, int(math.ceil(hi / p)) + 3):
+            c = (i + 0.5) * p + (0.0 if paint else direction * travel)
+            if lo <= c <= hi:
+                parts.append(box((link * 0.85, link * 0.42, 0.05), (c, side * sprocket_r, 0), M["iron"]))
+        name = f"chain_links_{k}"
+        objs.append(obj(name, parts, pos=a, rot=(-90, yaw, 0)))
+        if info is not None:
+            u = _to_world(R, (0, 0, 0), (1, 0, 0))
+            w = link * 0.3 + 0.012
+            corners = [(0, side * sprocket_r - w, 0.0), (L, side * sprocket_r - w, 0.0), (L, side * sprocket_r + w, 0.0), (0, side * sprocket_r + w, 0.0)]
+            info.setdefault("slide", {})[name] = {"offset": [direction * travel * c for c in u], "clip": [_to_world(R, a, c) for c in corners], "anchor": list(a)}
+    sprockets = spun(gear_parts(0.09, 8, 0.06, M["steel"], M["brass"], bore=False), spin(phase, 8))
+    sb = spun(gear_parts(0.09, 8, 0.06, M["steel"], M["brass"], bore=False), spin(phase, 8))
+    for q in sb:
+        q["position"][0] += L
+    objs.append(obj("chain_sprockets", sprockets + sb, pos=a, rot=(-90, yaw, 0)))
+    if info is not None:
+        info.setdefault("rotors", []).append("chain_sprockets")
+    return objs
+
+
 def motor(tier, phase, pos=(0.35, 0.36, 0.05), mat=None):
     """Central motor with a bobbing piston (vanilla's blue/green box)."""
     A = mat or armour(tier)
@@ -806,16 +866,20 @@ def check_gear_clearance(info, openings_slot, roof_y, o=OCT, margin=0.02):
     return sorted(set(problems))
 
 
-def machine_c(tier, phase, colour=None):
+def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
+    """info (a dict) collects what moves and how, for layered animation:
+    info["rotors"] (objects repainted each frame) and info["slide"] (objects
+    painted once and slid: world offset per this phase, clip, anchor)."""
     colour = colour or TIER_PAINT[tier]
+    info = {} if info is None else info
     objs, g = tub_octagon(colour)
     o = OCT
-    gears, info = gear_train(tier, phase)
+    gears, ginfo = gear_train(tier, phase)
     roof_y = g["roof_y"] + o["roof_t"] / 2  # the roof's top surface
-    slot = gear_slot(info, roof_y)
+    slot = gear_slot(ginfo, roof_y)
     hatch = rect_poly(-0.78, -0.3, -0.85, -0.42)
     vent = rect_poly(0.38, 0.86, 0.3, 0.62)
-    problems = check_gear_clearance(info, slot, roof_y)
+    problems = check_gear_clearance(ginfo, slot, roof_y)
     if problems:
         raise ValueError(f"machine C tier {tier}: " + "; ".join(problems[:4]))
     roof, top = roof_flat(colour, [slot, hatch, vent])
@@ -828,15 +892,19 @@ def machine_c(tier, phase, colour=None):
         body.append(tor(0.205, 0.016, (0, 0.06 + k * 0.09, 0), M["iron"], rot=(90, 0, 0), seg=40, sides=8))
     body.append(cyl(0.16, 0.05, (0, 0.42, 0), M["steel"], seg=40))
     objs.append(obj("motor", body, pos=mc))
-    rod_top = top + 0.12 + bob
-    objs.append(obj("motor_piston", [cyl(0.045, rod_top - (mc[1] + 0.42), (0, (rod_top - (mc[1] + 0.42)) / 2, 0), M["steel"], seg=16),
-                                     cyl(0.12, 0.08, (0, rod_top - (mc[1] + 0.42), 0), M["brass"], seg=32)], pos=(mc[0], mc[1] + 0.42, mc[2])))
+    # the piston is rigid and only translates (a layered animation paints it once and slides it)
+    head0 = (mc[0], top + 0.12, mc[2])
+    rod = head0[1] - (mc[1] + 0.42) + 0.1  # reaches 0.1 into the motor at the bottom of its stroke
+    objs.append(obj("motor_piston", [cyl(0.045, rod, (0, -rod / 2, 0), M["steel"], seg=16), cyl(0.12, 0.08, (0, 0, 0), M["brass"], seg=32)],
+                    pos=(head0[0], head0[1] + bob, head0[2])))
+    bob0 = 0.07 * 0.5
+    info.setdefault("slide", {})["motor_piston"] = {"offset": [0.0, bob - bob0, 0.0], "anchor": list(head0)}
     # vent slats over the front-right cutaway, a dark fan housing below
     objs.append(obj("vent_slats", [box((0.46, 0.025, 0.05), (0.62, top - 0.02, 0.33 + 0.07 * k), M["steel"], rot=(35, 0, 0)) for k in range(5)]))
     objs.append(obj("fan_housing", [cyl(0.2, 0.2, (0.62, top - 0.2, 0.46), M["iron_dark"], seg=32)]))
     # things resting on the roof
     if tier >= 2:
-        objs += chain_drive(tier, phase, a=(0.15, top + 0.07, -0.7), b=(0.82, top + 0.07, -0.42))
+        objs += chain_loop(phase, a=(0.15, top + 0.07, -0.7), b=(0.82, top + 0.07, -0.42), paint=paint_chain, info=info)
         objs.append(obj("chain_posts", [cyl(0.05, 0.07, (0.15, top + 0.035, -0.7), M["iron"], seg=12), cyl(0.05, 0.07, (0.82, top + 0.035, -0.42), M["iron"], seg=12)]))
     objs.append(obj("back_gear", spun(gear_parts(0.15, 12, 0.06, M["steel"], M["brass"]), spin(phase, 12, -1)), pos=(0.2, top + 0.24, -0.95)))
     objs.append(obj("back_gear_stand", [box((0.1, 0.24, 0.1), (0.2, top + 0.12, -1.0), M["iron"]), box((0.24, 0.04, 0.16), (0.2, top + 0.02, -1.0), M["iron"])]))
@@ -849,6 +917,8 @@ def machine_c(tier, phase, colour=None):
                                    cyl(0.06, 0.05, (-0.95, top + 0.05, -0.7), M["brass"], rot=(90, 0, 0), seg=14)]))
     objs.append(obj("gauge", [cyl(0.09, 0.04, (0, 0, 0), M["brass"], rot=(90, 0, 0), seg=28), cyl(0.07, 0.05, (0, 0, 0.005), M["glass"], rot=(90, 0, 0), seg=28),
                               box((0.05, 0.1, 0.05), (0, -0.08, -0.02), M["iron"])], pos=(0.1, top + 0.12, 0.85), rot=(-35, 0, 0)))
+    info.setdefault("rotors", [])
+    info["rotors"] = [o["name"] for o in gears if not o["name"].endswith("_bearing")] + ["handwheel", "back_gear"] + info["rotors"]
     return objs
 
 
@@ -993,6 +1063,36 @@ VARIANTS["2-c"] = ("c", 2, machine_c, "blue")
 VARIANTS["3-c"] = ("c", 3, machine_c, "lime")
 
 
+# The moving pieces are painted on their own sheets over the still machine: give
+# them thorough coverage (crisp, nearly opaque edges, little grain), so nothing
+# of what is behind them shows through.
+MOVER_OVERRIDES = ["paint.edge.fade=0.0015", "paint.edge.alpha=0.45", "paint.edge.aa=0.5", "paint.tooth.grain=0.12",
+                   "paint.blend.strength=0.15", "paint.highlights.density=0.15"]
+
+
+def write_animation_spec(out, key, tier, fn, colour, infos):
+    """animation.yaml for `artist layers`: chain runs slide (painted once from a
+    scene with spare links), rotating parts are repainted each frame, the piston
+    slides. Stacking order, back to front."""
+    n = len(infos)
+    groups = []
+    slides = infos[0].get("slide", {})
+    if any(nm.startswith("chain_links_") for nm in slides):
+        paint_info = {}
+        objs = fn(tier, 0.0, colour, info=paint_info, paint_chain=True)
+        (out / "chain_paint.yaml").write_text(yaml.safe_dump(scene(f"assembling-machine-{key}-chain-paint", objs), sort_keys=False, default_flow_style=None, width=140))
+        for nm in sorted(x for x in slides if x.startswith("chain_links_")):
+            groups.append({"name": nm, "objects": [nm], "mode": "slide", "scene": "chain_paint.yaml", "anchor": slides[nm]["anchor"],
+                           "clip": slides[nm]["clip"], "offsets": [inf["slide"][nm]["offset"] for inf in infos]})
+    groups.append({"name": "rotors", "objects": infos[0]["rotors"], "mode": "repaint"})
+    if "motor_piston" in slides:
+        groups.append({"name": "piston", "objects": ["motor_piston"], "mode": "slide", "anchor": slides["motor_piston"]["anchor"],
+                       "offsets": [inf["slide"]["motor_piston"]["offset"] for inf in infos]})
+    spec = {"frames": [f"frame_{k:02d}.yaml" for k in range(n)], "groups": groups, "group_overrides": MOVER_OVERRIDES}
+    (out / "animation.yaml").write_text("# Generated by build_models.py: the layered animation of " + key + " (artist layers).\n"
+                                        + yaml.safe_dump(spec, sort_keys=False, default_flow_style=None, width=140))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--phase", type=float, default=0.0, help="animation phase 0..1 for moving parts")
@@ -1004,11 +1104,16 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     if args.frames:
         d, tier, fn, colour = VARIANTS[args.only]
+        infos = []
         for k in range(args.frames):
             ph = k / args.frames
-            objs = fn(tier, ph, colour) if colour else fn(tier, ph)
+            info = {}
+            objs = fn(tier, ph, colour, info=info) if d == "c" else (fn(tier, ph, colour) if colour else fn(tier, ph))
+            infos.append(info)
             path = out / f"frame_{k:02d}.yaml"
             path.write_text(yaml.safe_dump(scene(f"assembling-machine-{args.only}-f{k:02d}", objs), sort_keys=False, default_flow_style=None, width=140))
+        if d == "c":
+            write_animation_spec(out, args.only, tier, fn, colour, infos)
         print(f"wrote {args.frames} frames to {out}")
         return
     for key, (d, tier, fn, colour) in VARIANTS.items():

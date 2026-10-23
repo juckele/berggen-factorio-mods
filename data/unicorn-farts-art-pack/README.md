@@ -14,9 +14,11 @@ Rendering and painting use [claude-artist](https://github.com/juckele/claude-art
 | --- | --- |
 | `models/build_models.py` | Generates claude-artist scene files for each machine. Edit this, not the YAML. |
 | `models/*.yaml` | Generated scenes: `assembling-machine-<tier>-<direction>.yaml`. |
-| `style/params.yaml` | The pack's claude-artist style: pastel, `coverage: full`, painted on a transparent sheet with stroke-owned fading edges. |
+| `animation.yaml` | Written by `build_models.py --only <C variant> --frames N --out DIR` next to the frame scenes: which objects move and how, for `artist layers`. |
+| `style/params.yaml`, `style/params_bold.yaml` | The pack's claude-artist styles: pastel, `coverage: full`, coherent strokes, painted on a transparent sheet with stroke-owned fading edges (bold: bigger, fewer, varied strokes). |
 | `tools/preview.py` | Composites painted runs over game-like grounds, at concept and in-game scale. |
-| `tools/animate.py` | Renders and paints a looping animation without the strokes boiling (static base + repainted moving parts). |
+| `tools/animate.py` | A looping animation painted in layers (`artist layers`): the machine once, rotating parts repainted per frame, chain runs and the piston painted once and slid. Writes preview GIFs. |
+| `tools/export_sprites.py` | Turns a layered animation into Factorio sprites (64 px/tile, `scale = 0.5`): static layers, frame sheets, the ground shadow, and a Lua table of layers with shifts. |
 
 ## Conventions
 
@@ -37,5 +39,6 @@ python3 models/build_models.py                       # regenerate all scenes
 A=~/claude-artist/artist
 $A run models/assembling-machine-2-a.yaml --style style/params.yaml -o out/2a --quality preview
 python3 tools/preview.py out/sheet.png out/2a --sprite
-python3 tools/animate.py 2-a -o out/anim-2a --frames 16
+python3 tools/animate.py 2-c -o out/anim-2c --frames 16             # layered, bold style
+python3 tools/export_sprites.py out/anim-2c/layers --entity assembling-machine-2 -o out/sprites
 ```
