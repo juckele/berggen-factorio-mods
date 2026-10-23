@@ -927,7 +927,7 @@ def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
     objs += [roof] + gears
     # under the hatch: a motor whose piston comes up through the roof and bobs
     stroke = 0.105  # piston travel (tiles)
-    bob = stroke * (0.5 + 0.5 * math.sin(phase * 2 * math.pi))
+    bob = stroke * piston_lift(phase)
     mc = (-0.54, o["floor"], -0.63)
     body = [cyl(0.2, 0.4, (0, 0.2, 0), paint_mat(colour, dark=True), seg=40)]
     for k in range(4):
@@ -1137,6 +1137,23 @@ MOVER_OVERRIDES = ["paint.edge.fade=0", "paint.edge.alpha=0.45", "paint.edge.aa=
                    "lines.dither.enabled=false", "paint.pencil.breaks=0", "paint.pencil.light_loss=0"]
 
 
+# Piston motion over one loop: lift 0 (bottom) .. 1 (top). `floor` clips a sine from below,
+# so the piston rests at the bottom while the sine is under it and rises in a cam-like hump;
+# `strokes` is how many humps per loop; `ease` shapes the hump (1 = sine; >1 sharper top).
+PISTON = {"floor": -1.0, "strokes": 1, "ease": 1.0}
+
+
+def piston_lift(phase, floor=None, strokes=None, ease=None):
+    floor = PISTON["floor"] if floor is None else floor
+    strokes = PISTON["strokes"] if strokes is None else strokes
+    ease = PISTON["ease"] if ease is None else ease
+    s = math.sin(phase * strokes * 2 * math.pi)
+    if floor <= -1:  # plain sine, mid-stroke at phase 0
+        return 0.5 + 0.5 * s
+    u = (max(s, floor) - floor) / (1 - floor)
+    return u ** ease
+
+
 def write_animation_spec(out, key, tier, fn, colour, infos):
     """animation.yaml for `artist layers`: chain runs slide (painted once from a
     scene with spare links), rotating parts are repainted each frame, the piston
@@ -1170,10 +1187,15 @@ def main():
     ap.add_argument("--phase", type=float, default=0.0, help="animation phase 0..1 for moving parts")
     ap.add_argument("--out", default=str(HERE))
     ap.add_argument("--only", help="one machine, e.g. 2-a")
+    ap.add_argument("--piston", help="piston motion: FLOOR[,STROKES[,EASE]], e.g. 0 (sine, rests at the bottom half the loop)")
     ap.add_argument("--frames", type=int, default=0, help="write N animation frames (phase k/N) of --only as frame_KK.yaml")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    if args.piston:
+        v = [float(x) for x in args.piston.split(",")]
+        PISTON.update(dict(zip(["floor", "strokes", "ease"], v)))
+        PISTON["strokes"] = int(PISTON["strokes"])
     if args.frames:
         d, tier, fn, colour = VARIANTS[args.only]
         infos = []
