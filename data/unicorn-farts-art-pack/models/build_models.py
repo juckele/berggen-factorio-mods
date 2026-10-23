@@ -1140,11 +1140,13 @@ MOVER_OVERRIDES = ["paint.edge.fade=0", "paint.edge.alpha=0.45", "paint.edge.aa=
 def write_animation_spec(out, key, tier, fn, colour, infos):
     """animation.yaml for `artist layers`: chain runs slide (painted once from a
     scene with spare links), rotating parts are repainted each frame, the piston
-    slides. Stacking order, back to front."""
+    slides. Stacking order, back to front: the chain first, so `artist layers`
+    lifts each link above the sprockets only in the frames and pixels where it
+    is nearer (it passes in front on the near side, behind on the far side)."""
     n = len(infos)
-    groups = [{"name": "rotors", "objects": infos[0]["rotors"], "mode": "repaint", "anchors": [inf.get("anchors", {}) for inf in infos]}]
+    groups = []
     slides = infos[0].get("slide", {})
-    if any(nm.startswith("chain_links_") for nm in slides):  # the chain goes in front of the sprockets
+    if any(nm.startswith("chain_links_") for nm in slides):
         paint_info = {}
         objs = fn(tier, 0.0, colour, info=paint_info, paint_chain=True)
         (out / "chain_paint.yaml").write_text(yaml.safe_dump(scene(f"assembling-machine-{key}-chain-paint", objs), sort_keys=False, default_flow_style=None, width=140))
@@ -1154,6 +1156,7 @@ def write_animation_spec(out, key, tier, fn, colour, infos):
     if infos[0].get("arcs"):
         groups.append({"name": "chain_arcs", "objects": infos[0]["arcs"]["objects"], "mode": "repaint", "clip": infos[0]["arcs"]["clip"],
                        "anchors": [inf.get("anchors", {}) for inf in infos]})
+    groups.append({"name": "rotors", "objects": infos[0]["rotors"], "mode": "repaint", "anchors": [inf.get("anchors", {}) for inf in infos]})
     if "motor_piston" in slides:
         groups.append({"name": "piston", "objects": ["motor_piston"], "mode": "slide", "anchor": slides["motor_piston"]["anchor"],
                        "offsets": [inf["slide"]["motor_piston"]["offset"] for inf in infos]})
