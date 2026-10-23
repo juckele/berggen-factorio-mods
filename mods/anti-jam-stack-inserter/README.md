@@ -29,6 +29,9 @@ Requires Space Age (Factorio 2.1).
 ## To do
 
 - Dedicated anti-jam stack inserter sprite and icon (currently a tint of the stack inserter's).
-- Once that exists, redo the conversion recipe icons. They currently put a small copy of the
-  source inserter in the top-left corner of the result's icon; with two identical shapes
-  that differ only in colour and no arrow, they're hard to read at inventory size.
+- Once that exists, redo the conversion recipe icons in the style of Space Age's nutrient
+  recipes (e.g. nutrients from spoilage). The input icon sits at the top left, just barely
+  smaller than the output. The output icon is shrunk from full size and layered in front at
+  the bottom right. The current icons put a small copy of the input in the top-left corner of
+  the full-size output; with two identical shapes that differ only in colour, they're hard to
+  read at inventory size.
