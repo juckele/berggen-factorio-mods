@@ -426,23 +426,33 @@ def _to_world(R, pos, v):
     return [pos[i] + sum(R[i][k] * v[k] for k in range(3)) for i in range(3)]
 
 
-def chain_loop(phase, a, b, link=0.07, sprocket_r=0.1, paint=False, info=None):
-    """A chain loop between two sprockets, built for layered animation: each
-    straight run is its own object (its links only slide along the run, the two
-    runs in opposite directions), the sprockets another (they turn).
+def chain_loop(phase, a, b, link=0.07, ring_r=0.1, paint=False, info=None):
+    """A chain loop between two sprockets, built for layered animation and drawn
+    in front of the sprockets: two straight runs whose links only slide along
+    the run (in opposite directions), and an arc of links round the outer half
+    of each sprocket that turns with it.
+
+    The pitch, the arcs' radius and the sprockets' teeth all match (an even
+    number of links round each sprocket), so a link leaves a run and rounds a
+    sprocket at the same speed and spacing; where a link crosses from run to
+    arc it is drawn half by each layer, both clipped at the same line, so links
+    never vanish or appear.
 
     paint=True builds the runs for painting once: unshifted, with two extra
-    pitches of links past each end, so the painted run can slide by up to the
-    cycle's travel and still be filled when clipped back to the span between
-    the sprocket centres. info (a dict) collects each run's world offset, clip
-    polygon and anchor."""
+    pitches of links past each end. info (a dict) collects the runs' offsets,
+    clips and anchors, and the arcs' clip and anchors."""
     dx, dz = b[0] - a[0], b[2] - a[2]
     L = math.hypot(dx, dz)
     yaw = math.degrees(math.atan2(-dz, dx))
     n = max(2, int(L / link))
     p = L / n
-    travel = phase * TEETH_PER_CYCLE * p  # the sprockets advance TEETH_PER_CYCLE teeth; the links as many pitches
+    n_ring = max(6, 2 * round(math.pi * ring_r / p))  # even: both tangent points sit half a pitch from a link
+    r = n_ring * p / (2 * math.pi)
+    dth = 2 * math.pi / n_ring
+    travel = phase * TEETH_PER_CYCLE * p  # the chain moves TEETH_PER_CYCLE pitches a cycle
+    ang = math.degrees(travel / r)  # ... and the sprockets turn as many teeth
     R = _euler(-90, yaw, 0)
+    lw, ld = link * 0.85, link * 0.42
     objs = []
     for k, side in enumerate((1, -1)):
         direction = -side  # a sprocket turning positive carries its +y side towards -x
@@ -451,24 +461,47 @@ def chain_loop(phase, a, b, link=0.07, sprocket_r=0.1, paint=False, info=None):
         for i in range(int(math.floor(lo / p)) - 3, int(math.ceil(hi / p)) + 3):
             c = (i + 0.5) * p + (0.0 if paint else direction * travel)
             if lo <= c <= hi:
-                parts.append(box((link * 0.85, link * 0.42, 0.05), (c, side * sprocket_r, 0), M["iron"]))
+                parts.append(box((lw, ld, 0.05), (c, side * r, 0), M["iron"]))
         name = f"chain_links_{k}"
         objs.append(obj(name, parts, pos=a, rot=(-90, yaw, 0)))
         if info is not None:
             u = _to_world(R, (0, 0, 0), (1, 0, 0))
             w = link * 0.3 + 0.012
-            corners = [(0, side * sprocket_r - w, 0.0), (L, side * sprocket_r - w, 0.0), (L, side * sprocket_r + w, 0.0), (0, side * sprocket_r + w, 0.0)]
+            corners = [(0, side * r - w, 0.0), (L, side * r - w, 0.0), (L, side * r + w, 0.0), (0, side * r + w, 0.0)]
             info.setdefault("slide", {})[name] = {"offset": [direction * travel * c for c in u], "clip": [_to_world(R, a, c) for c in corners], "anchor": list(a)}
-    sprockets = spun(gear_parts(0.09, 8, 0.06, M["steel"], M["brass"], bore=False), spin(phase, 8))
-    sb = spun(gear_parts(0.09, 8, 0.06, M["steel"], M["brass"], bore=False), spin(phase, 8))
+    # the sprockets, under the chain: as many teeth as links round them, tips just inside the chain
+    rs = (r - 0.014) / 1.187
+    centres = [a, _to_world(R, a, (L, 0, 0))]
+    spk = spun(gear_parts(rs, n_ring, 0.06, M["steel"], M["brass"], bore=False), ang)
+    sb = spun(gear_parts(rs, n_ring, 0.06, M["steel"], M["brass"], bore=False), ang)
     for q in sb:
         q["position"][0] += L
-    objs.append(obj("chain_sprockets", sprockets + sb, pos=a, rot=(-90, yaw, 0)))
+    objs.append(obj("chain_sprockets", spk + sb, pos=a, rot=(-90, yaw, 0)))
+    # the arcs: links round the outer half of each sprocket, turning with it
+    # (a link counts while its centre is within half a pitch of the outer half: the clip trims the rest)
+    w = link * 0.3 + 0.012
+    clips = []
+    for k, (start, lo_th, hi_th, xs) in enumerate(((math.pi / 2, math.pi / 2, 3 * math.pi / 2, (0.0, -(r + w))),
+                                                    (-math.pi / 2, -math.pi / 2, math.pi / 2, (L, L + r + w)))):
+        parts = []
+        for jj in range(n_ring):
+            th = start + (jj + 0.5) * dth + math.radians(ang)
+            rel = (th - lo_th) % (2 * math.pi)
+            if rel > (hi_th - lo_th) + dth * 0.55 and rel < 2 * math.pi - dth * 0.55:
+                continue
+            parts.append(box((lw, ld, 0.05), (r * math.cos(th), r * math.sin(th), 0), M["iron"], rot=(0, 0, math.degrees(th) + 90)))
+        cx = 0.0 if k == 0 else L
+        objs.append(obj(f"chain_arc_{k}", [dict(q, position=[q["position"][0] + cx, q["position"][1], q["position"][2]]) for q in parts], pos=a, rot=(-90, yaw, 0)))
+        x0, x1 = xs
+        clips.append([_to_world(R, a, c) for c in ((x0, -(r + w), 0.0), (x1, -(r + w), 0.0), (x1, r + w, 0.0), (x0, r + w, 0.0))])
     if info is not None:
         info.setdefault("rotors", []).append("chain_sprockets")
         ax, rf = _to_world(R, (0, 0, 0), (0, 0, 1)), _to_world(R, (0, 0, 0), (1, 0, 0))
-        info.setdefault("anchors", {})["chain_sprockets"] = [{"center": list(a), "axis": ax, "ref": rf, "angle": spin(phase, 8)},
-                                                             {"center": _to_world(R, a, (L, 0, 0)), "axis": ax, "ref": rf, "angle": spin(phase, 8)}]
+        an = info.setdefault("anchors", {})
+        an["chain_sprockets"] = [{"center": list(c), "axis": ax, "ref": rf, "angle": ang} for c in centres]
+        for k, c in enumerate(centres):
+            an[f"chain_arc_{k}"] = [{"center": list(c), "axis": ax, "ref": rf, "angle": ang}]
+        info["arcs"] = {"objects": ["chain_arc_0", "chain_arc_1"], "clip": clips}
     return objs
 
 
@@ -1109,16 +1142,18 @@ def write_animation_spec(out, key, tier, fn, colour, infos):
     scene with spare links), rotating parts are repainted each frame, the piston
     slides. Stacking order, back to front."""
     n = len(infos)
-    groups = []
+    groups = [{"name": "rotors", "objects": infos[0]["rotors"], "mode": "repaint", "anchors": [inf.get("anchors", {}) for inf in infos]}]
     slides = infos[0].get("slide", {})
-    if any(nm.startswith("chain_links_") for nm in slides):
+    if any(nm.startswith("chain_links_") for nm in slides):  # the chain goes in front of the sprockets
         paint_info = {}
         objs = fn(tier, 0.0, colour, info=paint_info, paint_chain=True)
         (out / "chain_paint.yaml").write_text(yaml.safe_dump(scene(f"assembling-machine-{key}-chain-paint", objs), sort_keys=False, default_flow_style=None, width=140))
         for nm in sorted(x for x in slides if x.startswith("chain_links_")):
             groups.append({"name": nm, "objects": [nm], "mode": "slide", "scene": "chain_paint.yaml", "anchor": slides[nm]["anchor"],
                            "clip": slides[nm]["clip"], "offsets": [inf["slide"][nm]["offset"] for inf in infos]})
-    groups.append({"name": "rotors", "objects": infos[0]["rotors"], "mode": "repaint", "anchors": [inf.get("anchors", {}) for inf in infos]})
+    if infos[0].get("arcs"):
+        groups.append({"name": "chain_arcs", "objects": infos[0]["arcs"]["objects"], "mode": "repaint", "clip": infos[0]["arcs"]["clip"],
+                       "anchors": [inf.get("anchors", {}) for inf in infos]})
     if "motor_piston" in slides:
         groups.append({"name": "piston", "objects": ["motor_piston"], "mode": "slide", "anchor": slides["motor_piston"]["anchor"],
                        "offsets": [inf["slide"]["motor_piston"]["offset"] for inf in infos]})
