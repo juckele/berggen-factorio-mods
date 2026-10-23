@@ -6,21 +6,28 @@ local function is_sprite(t)
   return t.filename ~= nil or t.filenames ~= nil or t.stripes ~= nil
 end
 
--- Tints every sprite definition inside a graphics table, leaving shadows alone.
-function lib.tint_graphics(graphics)
+-- Swaps vanilla stack inserter sprites in a graphics table for the purple ones.
+-- Sprites it doesn't recognise (another mod's reskin) are tinted instead.
+-- Shadows are left alone.
+function lib.recolor_graphics(graphics)
   if type(graphics) ~= "table" then return end
   if is_sprite(graphics) and not graphics.draw_as_shadow then
-    graphics.tint = shared.tint
+    local replacement = graphics.filename and shared.graphics[graphics.filename]
+    if replacement then
+      graphics.filename = replacement
+    else
+      graphics.tint = shared.tint
+    end
   end
   for key, value in pairs(graphics) do
     if type(value) == "table" and key ~= "tint" then
-      lib.tint_graphics(value)
+      lib.recolor_graphics(value)
     end
   end
 end
 
--- Returns tinted icon layers for a prototype with either `icon` or `icons`.
-function lib.tinted_icons(prototype)
+-- Icon layers for a prototype with either `icon` or `icons`, recoloured the same way.
+function lib.recolored_icons(prototype)
   local icons
   if prototype.icons then
     icons = table.deepcopy(prototype.icons)
@@ -28,7 +35,12 @@ function lib.tinted_icons(prototype)
     icons = {{icon = prototype.icon, icon_size = prototype.icon_size}}
   end
   for _, layer in pairs(icons) do
-    layer.tint = shared.tint
+    local replacement = shared.graphics[layer.icon]
+    if replacement then
+      layer.icon = replacement
+    else
+      layer.tint = shared.tint
+    end
   end
   return icons
 end
