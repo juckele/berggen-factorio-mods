@@ -8,5 +8,5 @@
     "base >= 2.1.0",
     "space-age >= 2.1.0"
   ],
-  "description": "Adds a purple stack inserter that swings without waiting for a full hand, so it can't jam waiting for items that never come."
+  "description": "A purple stack inserter that doesn't wait for a full hand, so belt stacking works on lines of mixed quality or spoilable items."
 }
