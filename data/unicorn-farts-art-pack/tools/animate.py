@@ -33,7 +33,7 @@ import os
 
 ARTIST = Path(os.environ.get("CLAUDE_ARTIST", Path(__file__).resolve().parents[4] / "claude-artist" / "artist"))
 MOVING = ("gear_0", "gear_1", "gear_2", "gear_shaft", "handwheel", "crank_arm", "chain", "motor_piston", "mid_gear", "mid_gear_2",
-          "back_gear", "flywheel", "press_ram")
+          "back_gear", "flywheel", "press_ram")  # object names posed by the phase in build_models.py
 
 
 def srgb(lin):
@@ -79,7 +79,7 @@ def main():
         runs.append(run)
         if args.skip_render and (run / "09_paint" / "pastel_rgb.npy").exists():
             continue
-        r = subprocess.run([str(ARTIST), "run", str(scenes / f"frame_{k:02d}.yaml"), "--style", args.style, "-o", str(run), "--quality", args.quality, "--seed", "7"],
+        r = subprocess.run([str(ARTIST), "run", str(scenes / f"frame_{k:02d}.yaml"), "--style", args.style, "-o", str(run), "--quality", args.quality, "--seed", "7", "--stop", "paint"],
                            capture_output=True, text=True)
         if r.returncode != 0:
             print(r.stdout[-2000:], r.stderr[-2000:])

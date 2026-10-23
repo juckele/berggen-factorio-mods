@@ -400,8 +400,8 @@ def chain_drive(tier, phase, a=(0.0, 0.95, -0.62), b=(1.05, 0.95, -0.98)):
     pitch = L / max(2, int(L / 0.07))
     shift = (phase * TEETH_PER_CYCLE * pitch) % pitch
     parts = chain_parts((0 + shift, 0), (L + shift, 0), 0.1, M["iron"])
-    parts += gear_parts(0.12, 10, 0.06, M["steel"], M["brass"], bore=False)
-    sprocket_b = gear_parts(0.12, 10, 0.06, M["steel"], M["brass"], bore=False)
+    parts += spun(gear_parts(0.09, 8, 0.06, M["steel"], M["brass"], bore=False), spin(phase, 8))
+    sprocket_b = spun(gear_parts(0.09, 8, 0.06, M["steel"], M["brass"], bore=False), spin(phase, 8))
     for p in sprocket_b:
         p["position"][0] += L
     parts += sprocket_b
@@ -547,92 +547,308 @@ def machine_b(tier, phase):
     return objs
 
 
-# ----------------------------------------------------------------- direction C: roofed tub
-def roof(colour, g, openings, front_slope_from=0.45, cell=0.05, thick=0.06):
-    """Riveted roof over the whole tub: flat, then sloping down to meet the
-    raked front wall; rectangular cutaways (x0, x1, z0, z1) framed in iron."""
-    A = paint_mat(colour)
-    xi, zb, zf = g["xi"], g["zb"], g["zf"] - 0.02
-    y_top, y_front = g["top"] + 0.02, g["front_top"] + 0.02
-    zs = front_slope_from
-    slope = math.degrees(math.atan2(y_top - y_front, zf - zs))
+# ----------------------------------------------------------------- direction C: octagonal roofed tub
+# The tub is the same all the way round: each side is four riveted panels, then
+# a slanted corner panel, all leaning in by the same angle, with an iron post
+# on every edge. A flat roof spans it, with cutaways the machinery shows through.
+OCT = {"foot": 1.40, "ch": 0.42, "wall_h": 0.68, "lean": 18.0, "t": 0.12, "base": 0.14, "floor": 0.17, "roof_t": 0.06}
 
-    def y_at(z):
-        return y_top if z <= zs else y_top - (z - zs) / (zf - zs) * (y_top - y_front)
 
-    def inside(x, z):
-        lim = xi - max(0.0, z - (zf - CH))  # chamfered front corners
-        if abs(x) > lim:
+def _oct_faces(o=OCT):
+    """Eight wall faces: (kind, psi, distance at the foot, length). psi is the
+    outward normal's angle (0 = front +z, 90 = right +x)."""
+    f, c = o["foot"], o["ch"]
+    out = []
+    for k in range(4):
+        out.append(("side", 90.0 * k, f, 2 * f - 2 * c))
+        out.append(("corner", 90.0 * k + 45, (2 * f - c) / math.sqrt(2), c * math.sqrt(2)))
+    return out
+
+
+def _n(psi):
+    return (math.sin(math.radians(psi)), math.cos(math.radians(psi)))  # (x, z)
+
+
+def oct_geometry(o=OCT):
+    sL, cL = math.sin(math.radians(o["lean"])), math.cos(math.radians(o["lean"]))
+    top = o["base"] + o["wall_h"] * cL
+    return {"top": top, "inset": o["wall_h"] * sL, "tan": sL / cL, "roof_y": top + o["roof_t"] / 2, "faces": _oct_faces(o)}
+
+
+def oct_inner(y, o=OCT):
+    """Per face: (normal, how far from the centre the wall's inner face is at height y)."""
+    g = oct_geometry(o)
+    return [(_n(psi), d - o["t"] / math.cos(math.radians(o["lean"])) - max(0.0, y - o["base"]) * g["tan"]) for _, psi, d, _ in g["faces"]]
+
+
+def _vertices(offset, o=OCT):
+    """Octagon corners with every face moved in by `offset`."""
+    faces = _oct_faces(o)
+    vs = []
+    for i in range(8):
+        (_, p1, d1, _), (_, p2, d2, _) = faces[i], faces[(i + 1) % 8]
+        (a1, b1), (a2, b2) = _n(p1), _n(p2)
+        det = a1 * b2 - a2 * b1
+        e1, e2 = d1 - offset, d2 - offset
+        vs.append(((e1 * b2 - e2 * b1) / det, (a1 * e2 - a2 * e1) / det))
+    return vs
+
+
+def _beam(p0, p1, size, mat):
+    """A box from p0 to p1 (centres of its ends), cross-section size (w, d)."""
+    v = [p1[i] - p0[i] for i in range(3)]
+    ln = math.sqrt(sum(c * c for c in v))
+    ax_ = math.degrees(math.asin(max(-1.0, min(1.0, v[2] / ln))))
+    bz = math.degrees(math.atan2(-v[0], v[1]))
+    return box((size[0], ln, size[1]), tuple((p0[i] + p1[i]) / 2 for i in range(3)), mat, rot=(ax_, 0, bz))
+
+
+def tub_octagon(colour, o=OCT):
+    A, Ad = paint_mat(colour), paint_mat(colour, dark=True)
+    g = oct_geometry(o)
+    base, t, h, lean = o["base"], o["t"], o["wall_h"], o["lean"]
+    objs = []
+    # plinth: a slightly larger octagon slab
+    f, c, pad = o["foot"] + 0.05, o["ch"], 0.05
+    pl = [box((2 * f, base, 2 * f - 2 * c), (0, base / 2, 0), M["iron_dark"]), box((2 * f - 2 * c, base, 2 * f), (0, base / 2, 0), M["iron_dark"])]
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            pl.append(box((c * math.sqrt(2) + 0.02, base, c / math.sqrt(2)), (sx * (f - c / 2 - c / 4), base / 2, sz * (f - c / 2 - c / 4)), M["iron_dark"], rot=(0, 45 * sx * sz, 0)))
+    objs.append(obj("plinth", pl))
+    # walls: four panels per side, one per corner, all leaning in
+    for k, (kind, psi, d, ln) in enumerate(g["faces"]):
+        nx, nz = _n(psi)
+        tx, tz = math.cos(math.radians(psi)), -math.sin(math.radians(psi))  # Ry(psi) * x
+        n_pan = 4 if kind == "side" else 1
+        w = ln / n_pan
+        for i in range(n_pan):
+            off = -ln / 2 + w * (i + 0.5)
+            pos = (nx * (d - t / 2) + tx * off, base, nz * (d - t / 2) + tz * off)
+            objs.append(obj(f"wall_{k}_{i}", wall_plate(w * 0.97, h, t, Ad if kind == "corner" else A, M["steel"], (2, 2)), pos=pos, rot=(-lean, psi, 0)))
+    # an iron post on every edge, along the line where two leaning faces meet
+    vb, vt = _vertices(0.0, o), _vertices(g["inset"], o)
+    posts = [_beam((vb[i][0], base, vb[i][1]), (vt[i][0], g["top"] - 0.03, vt[i][1]), (0.13, 0.13), M["iron"]) for i in range(8)]
+    # rim: iron capping along the top edges
+    vr = _vertices(g["inset"] + t * 0.5, o)
+    for i in range(8):
+        a, b = vr[i], vr[(i + 1) % 8]
+        posts.append(_beam((a[0], g["top"] + 0.01, a[1]), (b[0], g["top"] + 0.01, b[1]), (0.12, 0.07), M["iron"]))
+    objs.append(obj("frame", posts))
+    # floor
+    vf = _vertices(t + 0.1, o)
+    xi = max(abs(v[0]) for v in vf)
+    objs.append(obj("floor", [box((2 * xi, 0.03, 2 * xi), (0, o["floor"] - 0.015, 0), M["iron_dark"])]))
+    return objs, g
+
+
+def _in_poly(x, z, poly):
+    """Inside a convex polygon given counter-clockwise or clockwise."""
+    sgn = 0
+    for i in range(len(poly)):
+        (x1, z1), (x2, z2) = poly[i], poly[(i + 1) % len(poly)]
+        cr = (x2 - x1) * (z - z1) - (z2 - z1) * (x - x1)
+        if abs(cr) < 1e-12:
+            continue
+        s_ = 1 if cr > 0 else -1
+        if sgn == 0:
+            sgn = s_
+        elif s_ != sgn:
             return False
-        return not any(x0 <= x <= x1 and z0 <= z <= z1 for x0, x1, z0, z1 in openings)
+    return True
 
+
+def rect_poly(x0, x1, z0, z1):
+    return [(x0, z0), (x1, z0), (x1, z1), (x0, z1)]
+
+
+def oriented_poly(cx, cz, ux, uz, half_len, half_wid):
+    vx, vz = -uz, ux
+    return [(cx + sx * ux * half_len + sw * vx * half_wid, cz + sx * uz * half_len + sw * vz * half_wid) for sx, sw in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+
+
+def roof_flat(colour, openings, o=OCT, cell=0.04):
+    """Flat riveted roof filling the tub's top, with polygon cutaways framed in iron."""
+    A = paint_mat(colour)
+    g = oct_geometry(o)
+    y = g["roof_y"]
+    poly = _vertices(g["inset"] + o["t"] * 0.4, o)
+
+    def solid(x, z):
+        return _in_poly(x, z, poly) and not any(_in_poly(x, z, op) for op in openings)
+
+    xs = max(abs(v[0]) for v in poly)
+    n = int(2 * xs / cell) + 1
     parts = []
-    nz = int((zf - zb) / cell)
-    nx = int(2 * xi / cell)
-    for j in range(nz):
-        z = zb + (j + 0.5) * cell
-        row = [inside(-xi + (i + 0.5) * cell, z) for i in range(nx)]
+    for j in range(n):
+        z = -xs + (j + 0.5) * cell
+        row = [solid(-xs + (i + 0.5) * cell, z) for i in range(n)]
         i = 0
-        while i < nx:
+        while i < n:
             if not row[i]:
                 i += 1
                 continue
             k = i
-            while k < nx and row[k]:
+            while k < n and row[k]:
                 k += 1
-            x0, x1 = -xi + i * cell, -xi + k * cell
-            on_slope = z > zs
-            ln = cell / math.cos(math.radians(slope)) if on_slope else cell
-            parts.append(box((x1 - x0, thick, ln + 0.004), ((x0 + x1) / 2, y_at(z), z), A, rot=(slope if on_slope else 0, 0, 0)))
+            parts.append(box(((k - i) * cell, o["roof_t"], cell + 0.002), (-xs + (i + k) / 2 * cell, y, z), A))
             i = k
-    # seams every half tile and rivets along them
-    for zz in [zb + 0.5 * k for k in range(1, 6) if zb + 0.5 * k < zf]:
-        for x in [-xi + 0.1 * k + 0.05 for k in range(int(2 * xi / 0.1))]:
-            if inside(x, zz):
-                parts.append(box((0.1, 0.02, 0.035), (x, y_at(zz) + thick / 2 + 0.01, zz), M["iron"]))
-    for x0, x1, z0, z1 in openings:  # iron frames round the cutaways
-        for z in (z0, z1):
-            if zb < z < zf:
-                parts.append(box((x1 - x0 + 0.06, 0.08, 0.05), ((x0 + x1) / 2, y_at(z) + 0.02, z), M["iron"], rot=(slope if z > zs else 0, 0, 0)))
-        for x in (x0, x1):
-            if -xi < x < xi:
-                za, zc = max(z0, zb), min(z1, zf)
-                for zz in [za + (zc - za) * (k + 0.5) / 6 for k in range(6)]:
-                    parts.append(box((0.05, 0.08, (zc - za) / 6 + 0.01), (x, y_at(zz) + 0.02, zz), M["iron"], rot=(slope if zz > zs else 0, 0, 0)))
-    for x in [-xi + 0.08 + 0.2 * k for k in range(int((2 * xi - 0.1) / 0.2) + 1)]:  # rivets along the back edge
-        parts.append(sph(0.022, (x, y_top + thick / 2, zb + 0.06), M["steel"], seg=10))
-    return [obj("roof", parts)], y_at
+    # plate seams across the roof every half tile, and rivets beside them
+    for zz in (-0.5, 0.0, 0.5):
+        x = -xs
+        while x < xs:
+            if solid(x + 0.05, zz):
+                parts.append(box((0.1, 0.02, 0.03), (x + 0.05, y + o["roof_t"] / 2 + 0.01, zz), M["iron"]))
+                if int(round((x + xs) / 0.1)) % 3 == 0:
+                    parts.append(sph(0.02, (x + 0.05, y + o["roof_t"] / 2 + 0.01, zz + 0.05), M["steel"], seg=8))
+            x += 0.1
+    for op in openings:  # iron frames round the cutaways
+        for i in range(len(op)):
+            a, b = op[i], op[(i + 1) % len(op)]
+            parts.append(_beam((a[0], y + 0.02, a[1]), (b[0], y + 0.02, b[1]), (0.05, 0.08), M["iron"]))
+    return obj("roof", parts), y + o["roof_t"] / 2
+
+
+GEAR_PITCH = 2 * math.pi * 0.36 / 14  # arc pitch every meshing gear shares
+GEAR_YAW = 38.0  # gear planes face front-right; the train runs from front-left towards the back-right
+
+
+def gear_train(tier, phase, start=(-0.62, 0.56), radii=(0.36, 0.27, 0.21), o=OCT, label="gear", poke=0.36):
+    """1-3 meshing gears, each offset from the last and turning the other way
+    (vanilla's assembler gears). Equal arc pitch, teeth interleaved, and every
+    gear advances TEETH_PER_CYCLE teeth per cycle so the loop is seamless.
+    Returns (objects, info) with each gear's centre, tip radius and plane."""
+    d = (math.cos(math.radians(GEAR_YAW)), -math.sin(math.radians(GEAR_YAW)))  # in-plane horizontal (x, z)
+    gears = []
+    for i, r_want in enumerate(radii[:tier]):
+        teeth = max(8, round(2 * math.pi * r_want / GEAR_PITCH))
+        r = teeth * GEAR_PITCH / (2 * math.pi)
+        th = r * (0.22 if teeth <= 18 else 0.16)
+        gears.append({"teeth": teeth, "r": r, "th": th, "pitch_r": r + 0.35 * th, "tip": r + 0.85 * th})
+    clear = 0.035
+    roof_top = oct_geometry(o)["roof_y"] + o["roof_t"] / 2
+    x, z = start
+    for i, gr in enumerate(gears):
+        # every gear's top rises `poke` above the roof; small ones stand on taller bearing posts
+        cy = max(o["floor"] + gr["tip"] + clear, roof_top + poke - gr["tip"])
+        if i == 0:
+            gr["c"] = (x, cy, z)
+            gr["along"] = 0.0
+        else:
+            pv = gears[i - 1]
+            D = pv["pitch_r"] + gr["pitch_r"]
+            dy = cy - pv["c"][1]
+            dx = math.sqrt(max(D * D - dy * dy, 0.0))
+            gr["along"] = pv["along"] + dx
+            gr["c"] = (start[0] + d[0] * gr["along"], cy, start[1] + d[1] * gr["along"])
+            gr["phi"] = math.atan2(dy, dx)  # contact direction in the previous gear's plane
+    # base angles so the teeth interleave, then the spin (alternate senses)
+    gears[0]["base"] = 0.0
+    for i in range(1, len(gears)):
+        A, B = gears[i - 1], gears[i]
+        phi = B["phi"]
+        s_a = A["r"] * (math.radians(A["base"]) - phi)
+        B["base"] = math.degrees(phi + math.pi - (s_a + GEAR_PITCH / 2) / B["r"])
+    objs = []
+    for i, gr in enumerate(gears):
+        sense = 1 if i % 2 == 0 else -1
+        ang = gr["base"] + spin(phase, gr["teeth"], sense)
+        mat, hub = (M["steel"], M["brass"]) if i % 2 == 0 else (M["brass"], M["steel"])
+        objs.append(obj(f"{label}_{i}", spun(gear_parts(gr["r"], gr["teeth"], 0.09, mat, hub), ang), pos=gr["c"], rot=(0, GEAR_YAW, 0)))
+        # axle stub and bearing post behind each gear (on the floor)
+        nx, nz = math.sin(math.radians(GEAR_YAW)), math.cos(math.radians(GEAR_YAW))
+        bx, bz = gr["c"][0] - nx * 0.09, gr["c"][2] - nz * 0.09
+        objs.append(obj(f"{label}_{i}_bearing", [box((0.1, gr["c"][1] - o["floor"], 0.1), (0, -(gr["c"][1] - o["floor"]) / 2, 0), M["iron"]),
+                                                 cyl(0.055, 0.16, (0, 0, 0.04), M["steel"], rot=(90, 0, 0), seg=16)],
+                        pos=(bx, gr["c"][1], bz), rot=(0, GEAR_YAW, 0)))
+    return objs, {"gears": gears, "d": d, "normal": (math.sin(math.radians(GEAR_YAW)), math.cos(math.radians(GEAR_YAW)))}
+
+
+def gear_slot(info, roof_y, margin=0.07, o=OCT):
+    """The roof cutaway the gear train rises through: an oriented rectangle round
+    where each gear crosses the roof."""
+    d, nrm = info["d"], info["normal"]
+    lo, hi = [], []
+    for gr in info["gears"]:
+        dy = roof_y - o["roof_t"] - gr["c"][1]  # the roof's underside relative to the gear's centre
+        if dy >= gr["tip"]:
+            continue  # wholly under the roof
+        half = gr["tip"] if dy <= 0 else math.sqrt(gr["tip"] ** 2 - dy * dy)  # centre above the cut: its full width passes
+        lo.append(gr["along"] - half)
+        hi.append(gr["along"] + half)
+    g0 = info["gears"][0]["c"]
+    a0, a1 = min(lo) - margin, max(hi) + margin
+    mid = (a0 + a1) / 2
+    cx, cz = g0[0] + d[0] * mid, g0[2] + d[1] * mid
+    return oriented_poly(cx, cz, d[0], d[1], (a1 - a0) / 2, 0.045 + margin + 0.06)
+
+
+def check_gear_clearance(info, openings_slot, roof_y, o=OCT, margin=0.02):
+    """Every gear tip must stay inside the tub, above the floor, and below the
+    roof's underside unless it is over the slot. Returns a list of problems."""
+    problems = []
+    roof_under = roof_y - o["roof_t"]
+    d, nrm = info["d"], info["normal"]
+    for i, gr in enumerate(info["gears"]):
+        cx, cy, cz = gr["c"]
+        for k in range(72):
+            a = 2 * math.pi * k / 72
+            for w in (-0.05, 0.05):  # both faces of the gear
+                x = cx + d[0] * gr["tip"] * math.cos(a) + nrm[0] * w
+                z = cz + d[1] * gr["tip"] * math.cos(a) + nrm[1] * w
+                y = cy + gr["tip"] * math.sin(a)
+                if y < o["floor"] + 0.005:
+                    problems.append(f"gear {i} sinks into the floor at y={y:.3f}")
+                for (nx, nz), lim in oct_inner(y, o):
+                    if nx * x + nz * z > lim - margin:
+                        problems.append(f"gear {i} touches a wall at ({x:.2f}, {y:.2f}, {z:.2f})")
+                if y > roof_under - 0.01 and not _in_poly(x, z, openings_slot):
+                    problems.append(f"gear {i} cuts the roof at ({x:.2f}, {y:.2f}, {z:.2f})")
+    return sorted(set(problems))
 
 
 def machine_c(tier, phase, colour=None):
     colour = colour or TIER_PAINT[tier]
-    objs, g = tub_tapered(colour)
-    top = g["top"]
-    gear_cut = (-1.2, -0.25, 0.05, 1.2)
-    hatch = (0.12, 0.72, -0.5, 0.12)
-    vent = (-0.85, -0.3, -0.8, -0.45)
-    r, y_at = roof(colour, g, [gear_cut, hatch, vent])
-    objs += r
-    objs += gear_stack(tier, phase)  # pokes up through the front-left cutaway
-    objs += interior_clutter(tier, phase)
-    objs += motor(tier, phase, pos=(0.42, 0.36, -0.19), mat=paint_mat(colour, dark=True))  # under the hatch; the piston rises through it
-    # vent grille slats
-    objs.append(obj("vent_slats", [box((0.55, 0.03, 0.05), (-0.575, top - 0.02, -0.78 + 0.07 * k), M["steel"], rot=(30, 0, 0)) for k in range(5)]))
+    objs, g = tub_octagon(colour)
+    o = OCT
+    gears, info = gear_train(tier, phase)
+    roof_y = g["roof_y"] + o["roof_t"] / 2  # the roof's top surface
+    slot = gear_slot(info, roof_y)
+    hatch = rect_poly(-0.78, -0.3, -0.85, -0.42)
+    vent = rect_poly(0.38, 0.86, 0.3, 0.62)
+    problems = check_gear_clearance(info, slot, roof_y)
+    if problems:
+        raise ValueError(f"machine C tier {tier}: " + "; ".join(problems[:4]))
+    roof, top = roof_flat(colour, [slot, hatch, vent])
+    objs += [roof] + gears
+    # under the hatch: a motor whose piston comes up through the roof and bobs
+    bob = 0.07 * (0.5 + 0.5 * math.sin(phase * 2 * math.pi))
+    mc = (-0.54, o["floor"], -0.63)
+    body = [cyl(0.2, 0.4, (0, 0.2, 0), paint_mat(colour, dark=True), seg=40)]
+    for k in range(4):
+        body.append(tor(0.205, 0.016, (0, 0.06 + k * 0.09, 0), M["iron"], rot=(90, 0, 0), seg=40, sides=8))
+    body.append(cyl(0.16, 0.05, (0, 0.42, 0), M["steel"], seg=40))
+    objs.append(obj("motor", body, pos=mc))
+    rod_top = top + 0.12 + bob
+    objs.append(obj("motor_piston", [cyl(0.045, rod_top - (mc[1] + 0.42), (0, (rod_top - (mc[1] + 0.42)) / 2, 0), M["steel"], seg=16),
+                                     cyl(0.12, 0.08, (0, rod_top - (mc[1] + 0.42), 0), M["brass"], seg=32)], pos=(mc[0], mc[1] + 0.42, mc[2])))
+    # vent slats over the front-right cutaway, a dark fan housing below
+    objs.append(obj("vent_slats", [box((0.46, 0.025, 0.05), (0.62, top - 0.02, 0.33 + 0.07 * k), M["steel"], rot=(35, 0, 0)) for k in range(5)]))
+    objs.append(obj("fan_housing", [cyl(0.2, 0.2, (0.62, top - 0.2, 0.46), M["iron_dark"], seg=32)]))
     # things resting on the roof
-    objs += crank(tier, phase, pivot=(-0.78, top + 0.2, -0.95))
-    objs += back_gear(tier, phase, pos=(0.9, top + 0.12, -1.05))
     if tier >= 2:
-        objs += chain_drive(tier, phase, a=(-0.05, top + 0.1, -0.75), b=(0.95, top + 0.1, -0.92))
-    objs += [obj("handwheel", spun(handwheel_parts(0.2, M["steel"], M["brass"]), phase * 90), pos=(0.72, y_at(0.75) + 0.12, 0.72), rot=(-60, 0, 0))]
-    objs.append(obj("exhaust", [cyl(0.09, 0.36, (0, 0.18, 0), M["iron"], seg=24), cyl(0.12, 0.05, (0, 0.38, 0), M["iron_dark"], seg=24),
-                                cyl(0.11, 0.08, (0, 0.03, 0), M["iron"], seg=24)], pos=(1.0, top, -0.35)))
-    objs.append(obj("roof_pipes", [cyl(0.045, 1.5, (-0.98, top + 0.07, -0.2), M["copper"], rot=(90, 0, 0), seg=14),
-                                   tor(0.1, 0.045, (-0.88, top + 0.07, -0.95), M["copper"], rot=(90, 0, 180), arc=90, seg=14, sides=8)]))
-    objs.append(obj("hopper", [lathe([(0.0, 0.0), (0.06, 0.0), (0.06, 0.05), (0.17, 0.2), (0.18, 0.23), (0.15, 0.23), (0.05, 0.1), (0.0, 0.1)], (0, 0, 0), M["iron"], seg=32)],
-                    pos=(-0.25, top + 0.02, -0.75)))
-    objs.append(obj("gauge", [cyl(0.1, 0.05, (0, 0, 0), M["brass"], rot=(90, 0, 0), seg=28), cyl(0.078, 0.06, (0, 0, 0.005), M["glass"], rot=(90, 0, 0), seg=28)],
-                    pos=(0.25, y_at(0.8) + 0.07, 0.8), rot=(-45, 0, 0)))
-    objs.append(obj("tray", [box((0.6, 0.05, 0.42), (0, 0, 0), M["steel"]), box((0.16, 0.1, 0.16), (0.05, 0.07, 0), M["copper"])], pos=(0.45, 0.42, 0.62)))
+        objs += chain_drive(tier, phase, a=(0.15, top + 0.07, -0.7), b=(0.82, top + 0.07, -0.42))
+        objs.append(obj("chain_posts", [cyl(0.05, 0.07, (0.15, top + 0.035, -0.7), M["iron"], seg=12), cyl(0.05, 0.07, (0.82, top + 0.035, -0.42), M["iron"], seg=12)]))
+    objs.append(obj("back_gear", spun(gear_parts(0.15, 12, 0.06, M["steel"], M["brass"]), spin(phase, 12, -1)), pos=(0.2, top + 0.24, -0.95)))
+    objs.append(obj("back_gear_stand", [box((0.1, 0.24, 0.1), (0.2, top + 0.12, -1.0), M["iron"]), box((0.24, 0.04, 0.16), (0.2, top + 0.02, -1.0), M["iron"])]))
+    objs.append(obj("handwheel_valve", [cyl(0.05, 0.14, (0, 0.07, 0), M["brass"], seg=14), box((0.14, 0.08, 0.14), (0, 0.02, 0), M["iron"])], pos=(0.86, top, -0.05)))
+    objs.append(obj("handwheel", spun(handwheel_parts(0.15, M["steel"], M["brass"]), phase * 90), pos=(0.86, top + 0.16, -0.05), rot=(-70, 0, 0)))
+    objs.append(obj("exhaust", [cyl(0.08, 0.34, (0, 0.17, 0), M["iron"], seg=24), cyl(0.11, 0.05, (0, 0.36, 0), M["iron_dark"], seg=24),
+                                cyl(0.1, 0.06, (0, 0.03, 0), M["iron"], seg=24)], pos=(-0.86, top, 0.02)))
+    objs.append(obj("roof_pipes", [cyl(0.04, 0.9, (-0.95, top + 0.05, -0.45), M["copper"], rot=(90, 0, 0), seg=14),
+                                   cyl(0.06, 0.05, (-0.95, top + 0.05, -0.2), M["brass"], rot=(90, 0, 0), seg=14),
+                                   cyl(0.06, 0.05, (-0.95, top + 0.05, -0.7), M["brass"], rot=(90, 0, 0), seg=14)]))
+    objs.append(obj("gauge", [cyl(0.09, 0.04, (0, 0, 0), M["brass"], rot=(90, 0, 0), seg=28), cyl(0.07, 0.05, (0, 0, 0.005), M["glass"], rot=(90, 0, 0), seg=28),
+                              box((0.05, 0.1, 0.05), (0, -0.08, -0.02), M["iron"])], pos=(0.1, top + 0.12, 0.85), rot=(-35, 0, 0)))
     return objs
 
 
@@ -767,11 +983,14 @@ def scene(name, objects, px_per_tile=192):
 
 # key -> (direction, tier, builder, colour); C and D try tier 1 in the inserter/belt colours.
 VARIANTS = {f"{t}-{d}": (d, t, fn, None) for d, fn in (("a", machine_a), ("b", machine_b)) for t in (1, 2, 3)}
-for _d, _fn in (("c", machine_c), ("d", machine_d)):
-    for _c in ("yellow", "orange", "red"):
-        VARIANTS[f"1-{_d}-{_c}"] = (_d, 1, _fn, _c)
-    VARIANTS[f"2-{_d}"] = (_d, 2, _fn, "blue")
-    VARIANTS[f"3-{_d}"] = (_d, 3, _fn, "lime")
+for _c in ("yellow", "orange", "red"):
+    VARIANTS[f"1-d-{_c}"] = ("d", 1, machine_d, _c)
+VARIANTS["2-d"] = ("d", 2, machine_d, "blue")
+VARIANTS["3-d"] = ("d", 3, machine_d, "lime")
+# C is the chosen direction: tier 1 yellow, tier 2 blue, tier 3 lime.
+VARIANTS["1-c"] = ("c", 1, machine_c, "yellow")
+VARIANTS["2-c"] = ("c", 2, machine_c, "blue")
+VARIANTS["3-c"] = ("c", 3, machine_c, "lime")
 
 
 def main():

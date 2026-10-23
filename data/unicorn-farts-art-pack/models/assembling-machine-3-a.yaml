@@ -1831,8 +1831,8 @@ objects:
   - shape: lathe
     profile:
     - [0, -0.03]
-    - [0.12, -0.03]
-    - [0.12, 0.03]
+    - [0.09, -0.03]
+    - [0.09, 0.03]
     - [0, 0.03]
     segments: 64
     position: [0, 0, 0]
@@ -1841,68 +1841,58 @@ objects:
   - shape: lathe
     profile:
     - [0, -0.034499999999999996]
-    - [0.08639999999999999, -0.034499999999999996]
-    - [0.08639999999999999, 0.034499999999999996]
+    - [0.0648, -0.034499999999999996]
+    - [0.0648, 0.034499999999999996]
     - [0, 0.034499999999999996]
     segments: 48
     position: [0, 0, 0]
     rotation: [90, 0, 0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [0.1292, 0.0, 0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [0.0969, 0.0, 0]
     rotation: [0, 0, -90.0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [0.1046, 0.076, 0]
-    rotation: [0, 0, -54.0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [0.0685, 0.0685, 0]
+    rotation: [0, 0, -45.0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [0.0399, 0.1229, 0]
-    rotation: [0, 0, -18.0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [0.0, 0.0969, 0]
+    rotation: [0, 0, 0.0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [-0.0399, 0.1229, 0]
-    rotation: [0, 0, 18.0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [-0.0685, 0.0685, 0]
+    rotation: [0, 0, 45.0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [-0.1046, 0.076, 0]
-    rotation: [0, 0, 54.0]
-    material: *id004
-  - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [-0.1292, 0.0, 0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [-0.0969, 0.0, 0]
     rotation: [0, 0, 90.0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [-0.1046, -0.076, 0]
-    rotation: [0, 0, 126.0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [-0.0685, -0.0685, 0]
+    rotation: [0, 0, 135.0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [-0.0399, -0.1229, 0]
-    rotation: [0, 0, 162.0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [-0.0, -0.0969, 0]
+    rotation: [0, 0, 180.0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [0.0399, -0.1229, 0]
-    rotation: [0, 0, 198.0]
-    material: *id004
-  - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [0.1046, -0.076, 0]
-    rotation: [0, 0, 234.0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [0.0685, -0.0685, 0]
+    rotation: [0, 0, 225.0]
     material: *id004
   - shape: lathe
     profile:
     - [0, -0.045]
-    - [0.0312, -0.045]
-    - [0.0312, 0.045]
+    - [0.0234, -0.045]
+    - [0.0234, 0.045]
     - [0, 0.045]
     segments: 32
     position: [0, 0, 0]
@@ -1911,8 +1901,8 @@ objects:
   - shape: lathe
     profile:
     - [0, -0.03]
-    - [0.12, -0.03]
-    - [0.12, 0.03]
+    - [0.09, -0.03]
+    - [0.09, 0.03]
     - [0, 0.03]
     segments: 64
     position: [1.11, 0, 0]
@@ -1921,68 +1911,58 @@ objects:
   - shape: lathe
     profile:
     - [0, -0.034499999999999996]
-    - [0.08639999999999999, -0.034499999999999996]
-    - [0.08639999999999999, 0.034499999999999996]
+    - [0.0648, -0.034499999999999996]
+    - [0.0648, 0.034499999999999996]
     - [0, 0.034499999999999996]
     segments: 48
     position: [1.11, 0, 0]
     rotation: [90, 0, 0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [1.2392, 0.0, 0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [1.2069, 0.0, 0]
     rotation: [0, 0, -90.0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [1.2146000000000001, 0.076, 0]
-    rotation: [0, 0, -54.0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [1.1785, 0.0685, 0]
+    rotation: [0, 0, -45.0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [1.1499000000000001, 0.1229, 0]
-    rotation: [0, 0, -18.0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [1.11, 0.0969, 0]
+    rotation: [0, 0, 0.0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [1.0701, 0.1229, 0]
-    rotation: [0, 0, 18.0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [1.0415, 0.0685, 0]
+    rotation: [0, 0, 45.0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [1.0054, 0.076, 0]
-    rotation: [0, 0, 54.0]
-    material: *id004
-  - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [0.9808000000000001, 0.0, 0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [1.0131000000000001, 0.0, 0]
     rotation: [0, 0, 90.0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [1.0054, -0.076, 0]
-    rotation: [0, 0, 126.0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [1.0415, -0.0685, 0]
+    rotation: [0, 0, 135.0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [1.0701, -0.1229, 0]
-    rotation: [0, 0, 162.0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [1.11, -0.0969, 0]
+    rotation: [0, 0, 180.0]
     material: *id004
   - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [1.1499000000000001, -0.1229, 0]
-    rotation: [0, 0, 198.0]
-    material: *id004
-  - shape: box
-    size: [0.0377, 0.0264, 0.06]
-    position: [1.2146000000000001, -0.076, 0]
-    rotation: [0, 0, 234.0]
+    size: [0.0353, 0.0198, 0.06]
+    position: [1.1785, -0.0685, 0]
+    rotation: [0, 0, 225.0]
     material: *id004
   - shape: lathe
     profile:
     - [0, -0.045]
-    - [0.0312, -0.045]
-    - [0.0312, 0.045]
+    - [0.0234, -0.045]
+    - [0.0234, 0.045]
     - [0, 0.045]
     segments: 32
     position: [1.11, 0, 0]
