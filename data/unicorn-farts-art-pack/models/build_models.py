@@ -144,14 +144,14 @@ def gear_parts(radius, teeth, thick, mat, hub_mat, spokes=0, bore=True):
     return parts
 
 
-def handwheel_parts(radius, mat, hub_mat, spokes=4):
-    """Valve handwheel in local XY plane (axle along z)."""
-    parts = [tor(radius, radius * 0.11, (0, 0, 0), mat, seg=48, sides=10)]
+def handwheel_parts(radius, mat, hub_mat, spokes=4, rim=0.11, spoke=0.07):
+    """Valve handwheel in local XY plane (axle along z). rim/spoke: thicknesses as fractions of the radius."""
+    parts = [tor(radius, radius * rim, (0, 0, 0), mat, seg=48, sides=10)]
     for i in range(spokes):
         a = 360.0 * i / spokes + 45
         ar = math.radians(a)
-        parts.append(cyl(radius * 0.07, radius, (0.5 * radius * math.cos(ar), 0.5 * radius * math.sin(ar), 0), mat, rot=(0, 0, a - 90), seg=12))
-    parts.append(cyl(radius * 0.22, radius * 0.25, (0, 0, 0), hub_mat, rot=(90, 0, 0), seg=24))
+        parts.append(cyl(radius * spoke, radius, (0.5 * radius * math.cos(ar), 0.5 * radius * math.sin(ar), 0), mat, rot=(0, 0, a - 90), seg=12))
+    parts.append(cyl(radius * (0.22 + spoke), radius * 0.25, (0, 0, 0), hub_mat, rot=(90, 0, 0), seg=24))
     return parts
 
 
@@ -465,7 +465,32 @@ def chain_loop(phase, a, b, link=0.07, sprocket_r=0.1, paint=False, info=None):
     objs.append(obj("chain_sprockets", sprockets + sb, pos=a, rot=(-90, yaw, 0)))
     if info is not None:
         info.setdefault("rotors", []).append("chain_sprockets")
+        ax, rf = _to_world(R, (0, 0, 0), (0, 0, 1)), _to_world(R, (0, 0, 0), (1, 0, 0))
+        info.setdefault("anchors", {})["chain_sprockets"] = [{"center": list(a), "axis": ax, "ref": rf, "angle": spin(phase, 8)},
+                                                             {"center": _to_world(R, a, (L, 0, 0)), "axis": ax, "ref": rf, "angle": spin(phase, 8)}]
     return objs
+
+
+MATTE_STEEL = {"color": "#8c8c88", "roughness": 0.78, "specular": 0.1}
+MATTE_BRASS = {"color": "#9c8250", "roughness": 0.7, "specular": 0.15}
+
+
+def governor_parts(arm=0.2, ball=0.065, height=0.5, spread=38.0):
+    """A centrifugal (Watt) governor in a local frame whose z is the spindle:
+    a spindle with a cap, two arms hinged at the top swinging out heavy balls,
+    links down to a sliding collar. Turns about local z; symmetric every half turn."""
+    parts = [cyl(0.026, height, (0, 0, height / 2), M["steel"], rot=(90, 0, 0), seg=14),
+             sph(0.045, (0, 0, height + 0.01), M["iron"], seg=16),
+             cyl(0.055, 0.05, (0, 0, height * 0.36), M["iron"], rot=(90, 0, 0), seg=20)]  # the collar
+    hinge = (0.0, 0.0, height * 0.94)
+    for sx in (-1, 1):
+        s_, c_ = math.sin(math.radians(spread)), math.cos(math.radians(spread))
+        bc = (sx * (0.02 + arm * s_), 0.0, hinge[2] - arm * c_)  # ball centre
+        parts.append(_beam(hinge, bc, (0.026, 0.026), M["iron"]))
+        parts.append(sph(ball, bc, M["brass"], seg=20))
+        mid = (hinge[0] + (bc[0] - hinge[0]) * 0.55, 0.0, hinge[2] + (bc[2] - hinge[2]) * 0.55)
+        parts.append(_beam(mid, (sx * 0.05, 0.0, height * 0.36), (0.018, 0.018), M["steel"]))  # link to the collar
+    return parts
 
 
 def motor(tier, phase, pos=(0.35, 0.36, 0.05), mat=None):
@@ -906,10 +931,15 @@ def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
     if tier >= 2:
         objs += chain_loop(phase, a=(0.15, top + 0.07, -0.7), b=(0.82, top + 0.07, -0.42), paint=paint_chain, info=info)
         objs.append(obj("chain_posts", [cyl(0.05, 0.07, (0.15, top + 0.035, -0.7), M["iron"], seg=12), cyl(0.05, 0.07, (0.82, top + 0.035, -0.42), M["iron"], seg=12)]))
-    objs.append(obj("back_gear", spun(gear_parts(0.15, 12, 0.06, M["steel"], M["brass"]), spin(phase, 12, -1)), pos=(0.2, top + 0.24, -0.95)))
-    objs.append(obj("back_gear_stand", [box((0.1, 0.24, 0.1), (0.2, top + 0.12, -1.0), M["iron"]), box((0.24, 0.04, 0.16), (0.2, top + 0.02, -1.0), M["iron"])]))
+    # a centrifugal governor at the back: flyballs on a spindle, turning (it repeats every half turn)
+    gov_pos = (0.0, top + 0.1, -0.93)
+    gov_ang = phase * 180.0
+    objs.append(obj("governor", spun(governor_parts(), gov_ang), pos=gov_pos, rot=(-90, 0, 0)))
+    objs.append(obj("governor_base", [box((0.2, 0.1, 0.2), (gov_pos[0], top + 0.05, gov_pos[2]), M["iron"]),
+                                      cyl(0.07, 0.04, (gov_pos[0], top + 0.1, gov_pos[2]), M["iron_dark"], seg=20)]))
     objs.append(obj("handwheel_valve", [cyl(0.05, 0.14, (0, 0.07, 0), M["brass"], seg=14), box((0.14, 0.08, 0.14), (0, 0.02, 0), M["iron"])], pos=(0.86, top, -0.05)))
-    objs.append(obj("handwheel", spun(handwheel_parts(0.15, M["steel"], M["brass"]), phase * 90), pos=(0.86, top + 0.16, -0.05), rot=(-70, 0, 0)))
+    hw_pos, hw_rot = (0.86, top + 0.16, -0.05), (-70, 0, 0)
+    objs.append(obj("handwheel", spun(handwheel_parts(0.16, MATTE_STEEL, MATTE_BRASS, rim=0.2, spoke=0.14), phase * 90), pos=hw_pos, rot=hw_rot))
     objs.append(obj("exhaust", [cyl(0.08, 0.34, (0, 0.17, 0), M["iron"], seg=24), cyl(0.11, 0.05, (0, 0.36, 0), M["iron_dark"], seg=24),
                                 cyl(0.1, 0.06, (0, 0.03, 0), M["iron"], seg=24)], pos=(-0.86, top, 0.02)))
     objs.append(obj("roof_pipes", [cyl(0.04, 0.9, (-0.95, top + 0.05, -0.45), M["copper"], rot=(90, 0, 0), seg=14),
@@ -918,7 +948,21 @@ def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
     objs.append(obj("gauge", [cyl(0.09, 0.04, (0, 0, 0), M["brass"], rot=(90, 0, 0), seg=28), cyl(0.07, 0.05, (0, 0, 0.005), M["glass"], rot=(90, 0, 0), seg=28),
                               box((0.05, 0.1, 0.05), (0, -0.08, -0.02), M["iron"])], pos=(0.1, top + 0.12, 0.85), rot=(-35, 0, 0)))
     info.setdefault("rotors", [])
-    info["rotors"] = [o["name"] for o in gears if not o["name"].endswith("_bearing")] + ["handwheel", "back_gear"] + info["rotors"]
+    info["rotors"] = [o["name"] for o in gears if not o["name"].endswith("_bearing")] + ["handwheel", "governor"] + info["rotors"]
+    # where each turning part is and how far it has turned, so its strokes can turn with it
+    an = info.setdefault("anchors", {})
+    for o in gears:
+        if o["name"].endswith("_bearing"):
+            continue
+        R = _euler(*o["rotation"])
+        i = int(o["name"].split("_")[1])
+        gr = ginfo["gears"][i]
+        ang = gr["base"] + spin(phase, gr["teeth"], 1 if i % 2 == 0 else -1)
+        an[o["name"]] = [{"center": list(o["position"]), "axis": _to_world(R, (0, 0, 0), (0, 0, 1)), "ref": _to_world(R, (0, 0, 0), (1, 0, 0)), "angle": ang}]
+    R = _euler(*hw_rot)
+    an["handwheel"] = [{"center": list(hw_pos), "axis": _to_world(R, (0, 0, 0), (0, 0, 1)), "ref": _to_world(R, (0, 0, 0), (1, 0, 0)), "angle": phase * 90}]
+    R = _euler(-90, 0, 0)
+    an["governor"] = [{"center": list(gov_pos), "axis": _to_world(R, (0, 0, 0), (0, 0, 1)), "ref": _to_world(R, (0, 0, 0), (1, 0, 0)), "angle": gov_ang}]
     return objs
 
 
@@ -1067,7 +1111,7 @@ VARIANTS["3-c"] = ("c", 3, machine_c, "lime")
 # them thorough coverage (crisp, nearly opaque edges, little grain), so nothing
 # of what is behind them shows through.
 MOVER_OVERRIDES = ["paint.edge.fade=0.0015", "paint.edge.alpha=0.45", "paint.edge.aa=0.5", "paint.tooth.grain=0.12",
-                   "paint.blend.strength=0.15", "paint.highlights.density=0.15"]
+                   "paint.blend.strength=0.15", "paint.highlights.enabled=false"]
 
 
 def write_animation_spec(out, key, tier, fn, colour, infos):
@@ -1084,7 +1128,7 @@ def write_animation_spec(out, key, tier, fn, colour, infos):
         for nm in sorted(x for x in slides if x.startswith("chain_links_")):
             groups.append({"name": nm, "objects": [nm], "mode": "slide", "scene": "chain_paint.yaml", "anchor": slides[nm]["anchor"],
                            "clip": slides[nm]["clip"], "offsets": [inf["slide"][nm]["offset"] for inf in infos]})
-    groups.append({"name": "rotors", "objects": infos[0]["rotors"], "mode": "repaint"})
+    groups.append({"name": "rotors", "objects": infos[0]["rotors"], "mode": "repaint", "anchors": [inf.get("anchors", {}) for inf in infos]})
     if "motor_piston" in slides:
         groups.append({"name": "piston", "objects": ["motor_piston"], "mode": "slide", "anchor": slides["motor_piston"]["anchor"],
                        "offsets": [inf["slide"]["motor_piston"]["offset"] for inf in infos]})
