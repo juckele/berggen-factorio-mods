@@ -5,6 +5,9 @@
 
 1. build_models.py writes N looping frames (phase k/N) of the machine.
 2. claude-artist renders and paints every frame (the pack's style).
+   With the style's `paint.coherent: true` each stroke's random choices depend
+   only on where it is, and every frame reuses frame 0's box of sticks, so a
+   frame's painting differs from the last only where the picture does.
 3. Frame 0 is the static base. Each other frame keeps the base everywhere
    except where something moved: the moving objects in either frame plus any
    pixel whose rendered light changed (moving cast shadows), grown a little
@@ -79,8 +82,10 @@ def main():
         runs.append(run)
         if args.skip_render and (run / "09_paint" / "pastel_rgb.npy").exists():
             continue
-        r = subprocess.run([str(ARTIST), "run", str(scenes / f"frame_{k:02d}.yaml"), "--style", args.style, "-o", str(run), "--quality", args.quality, "--seed", "7", "--stop", "paint"],
-                           capture_output=True, text=True)
+        cmd = [str(ARTIST), "run", str(scenes / f"frame_{k:02d}.yaml"), "--style", args.style, "-o", str(run), "--quality", args.quality, "--seed", "7", "--stop", "paint"]
+        if k > 0:  # every frame paints from frame 0's box of sticks, so colours don't shift between frames
+            cmd += ["--set", f"paint.sticks.fixed={runs[0] / '09_paint' / 'sticks_lab.npy'}"]
+        r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
             print(r.stdout[-2000:], r.stderr[-2000:])
             raise SystemExit(f"frame {k} failed")

@@ -44,6 +44,7 @@ colour:
 
 paint:
   medium: pastel
+  coherent: true      # stroke randomness tied to position, so animation frames only differ where the picture does
   coverage: full
   mass: {sigma: 0.011}                        # bigger, simpler value shapes
   broken: {value: 0.1, temperature: 0.09, scale: 0.06}

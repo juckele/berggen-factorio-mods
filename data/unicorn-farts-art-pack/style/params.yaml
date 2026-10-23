@@ -43,6 +43,7 @@ colour:
 
 paint:
   medium: pastel
+  coherent: true      # stroke randomness tied to position, so animation frames only differ where the picture does
   coverage: full
   edge: {aa: 0.6, fade: 0.007, alpha: 0.7}   # strokes run past the silhouette and thin out over ~5 px (concept scale)
   tooth: {grain: 0.45}
