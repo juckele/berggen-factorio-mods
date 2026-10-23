@@ -28,10 +28,16 @@ Requires Space Age (Factorio 2.1).
 
 ## Graphics
 
-Purple recolor of the Space Age stack inserter's sprites, matched to the 1.1 filter
-inserter: purple arm and platform, darker purple trim on the hand, bronze platform centre.
-Shadows and the frozen overlay are vanilla. If another mod has replaced the stack inserter's
-sprites, those are tinted purple instead.
+Built from the 1.1 filter inserter and the Space Age stack inserter. Parts the bulk, filter
+and stack inserters share come from the filter inserter; parts only the stack inserter has
+come from the stack inserter with its yellow trim recoloured to the filter inserter's purple.
+
+- Platform: the filter inserter's (all three share the same silhouette).
+- Icon: the filter inserter's legs and turret, the stack inserter's arm and claw head.
+- Base arm, hands and remnants: the stack inserter's, yellow trim made purple.
+- Shadows and the frozen overlay: vanilla stack inserter.
+
+If another mod has replaced the stack inserter's sprites, those are tinted purple instead.
 
 The conversion recipe icons follow Space Age's nutrient recipes: the input at the top left,
 the output slightly larger at the bottom right, in front.
