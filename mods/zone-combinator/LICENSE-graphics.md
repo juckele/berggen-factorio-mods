@@ -1,7 +1,7 @@
 The combinator graphics in this mod are adapted from Factorio's own graphics, which are
 copyrighted by Wube Software Ltd. The tint masks are derived from the Factorio 1.1 constant
-combinator sprite and icon (see make-mask.py), and the thumbnail is a recoloured constant
-combinator.
+combinator sprite and icon (see make-mask.py in the mod's source repository), and the
+thumbnail is a recoloured constant combinator.
 
 They are included under the Factorio Terms of Service
 (https://factorio.com/terms-of-service), which permit works derived from Factorio assets
