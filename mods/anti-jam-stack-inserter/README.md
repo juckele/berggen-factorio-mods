@@ -9,7 +9,7 @@ of item at one quality, so it can get stuck:
   stuck waiting for a higher quality item.
 - **Spoilable items:** discarding spoilage from a machine can leave it stuck.
 
-An Anti-jam Stack Inserter will swing immediately when picking up items from a chest. When picking up items from a belt it waits about a third of second before it will swing.
+An Anti-jam Stack Inserter will swing immediately when picking up items from a chest. When picking up items from a belt it waits about a third of a second before it will swing.
 
 It's purple, in the style of the classic filter inserter, so you can tell them apart at a
 glance. It has the same speed, power use, health and hand size as the stack inserter, and
