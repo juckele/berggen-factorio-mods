@@ -13,6 +13,10 @@ entity.icons = util_lib.recolored_icons(stack_entity)
 entity.localised_name = nil
 entity.localised_description = nil
 entity.next_upgrade = nil
+-- Sort right after the stack inserter (upgrade planner, Factoriopedia...). Without an order
+-- the engine uses "z-" plus the order of the first item that builds it, which with smart
+-- swapping is the stack inserter's, so the two would tie and sort by name.
+entity.order = (stack_entity.order or ("z-" .. (stack_item.order or ""))) .. "-b[anti-jam]"
 for _, key in pairs({
   "hand_base_picture", "hand_open_picture", "hand_closed_picture", "platform_picture",
 }) do
