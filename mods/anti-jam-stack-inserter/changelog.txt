@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
-Version: 0.1.0
+Version: 1.0.0
 Date: 2026-10-23
   Features:
     - Anti-jam stack inserter: a stack inserter that swings without waiting for a full hand.
