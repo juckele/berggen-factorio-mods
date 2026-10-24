@@ -54,15 +54,7 @@ end
 
 -- Holding an anti-jam ghost while carrying stack inserters of that quality: hold real
 -- anti-jam items instead (one inventory stack's worth, like picking up from the inventory).
-local CAN_HOLD_ITEMS = {
-  [defines.controllers.character] = true,
-  [defines.controllers.god] = true,
-  [defines.controllers.editor] = true,
-}
-
 local function upgrade_ghost_cursor(player)
-  -- Remote view can't move items, so it keeps the ghost.
-  if not CAN_HOLD_ITEMS[player.controller_type] then return end
   local cursor = player.cursor_stack
   if not cursor or cursor.valid_for_read then return end
   local ghost = player.cursor_ghost
@@ -113,15 +105,6 @@ script.on_event(defines.events.on_player_cursor_stack_changed, function(event)
     convert_entity(opened)
   end
   upgrade_ghost_cursor(player)
-end)
-
--- Picking the anti-jam stack inserter from a quickbar slot (with none in the inventory)
--- gives a ghost cursor without a cursor-changed event, so check each tick. This is one
--- cursor read per connected player and does nothing unless they hold an anti-jam ghost.
-script.on_event(defines.events.on_tick, function()
-  for _, player in pairs(game.connected_players) do
-    upgrade_ghost_cursor(player)
-  end
 end)
 
 -- Items put in the inventory any other way (cheat or editor mode, other mods).
