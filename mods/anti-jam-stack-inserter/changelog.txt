@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.0.1
+Date: 2026-10-24
+  Info:
+    - Clarified licensing: the graphics are adapted from Factorio's art (c) Wube Software Ltd. and are not
+      covered by the mod's MIT license. See LICENSE-graphics.md.
+---------------------------------------------------------------------------------------------------
 Version: 1.0.0
 Date: 2026-10-23
   Features:
