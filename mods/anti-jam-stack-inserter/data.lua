@@ -108,9 +108,10 @@ if shared.quick_swap then
   end
 
   data:extend({
-    conversion(shared.to_anti_jam, shared.base_name, shared.name,
-      conversion_icons(shared.to_anti_jam, item.icons, stack_icons), item.order .. "-a"),
+    -- Back to a stack inserter sorts first, then to an anti-jam stack inserter.
     conversion(shared.to_stack, shared.name, shared.base_name,
-      conversion_icons(shared.to_stack, stack_icons, item.icons), item.order .. "-b"),
+      conversion_icons(shared.to_stack, stack_icons, item.icons), item.order .. "-a"),
+    conversion(shared.to_anti_jam, shared.base_name, shared.name,
+      conversion_icons(shared.to_anti_jam, item.icons, stack_icons), item.order .. "-b"),
   })
 end
