@@ -15,4 +15,4 @@ Factorio mods published by [berggen](https://mods.factorio.com/user/berggen).
 ## Releasing
 
 Bump `version` in the mod's `info.json`, add a matching entry to its `changelog.txt`, commit,
-then run [`tools/upload_mod.py`](tools/README.md).
+then run [`tools/upload_mod.py`](tools/README.md) (with `--publish` for a mod's first release).
