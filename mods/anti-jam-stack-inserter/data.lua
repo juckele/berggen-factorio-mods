@@ -35,9 +35,10 @@ end
 
 data:extend({entity})
 
--- TESTING: an item that places the anti-jam stack inserter, so it can go on quickbars
--- (and give a ghost cursor). No recipe and nothing drops it; the entity is still built
--- from and mined to stack inserter items. Revert this revision if it misbehaves in game.
+-- An item that places the anti-jam stack inserter. No recipe and nothing drops it; the
+-- entity is still built from and mined to stack inserter items. It exists so the pipette
+-- (control.lua) and quickbars can give an anti-jam stack inserter ghost cursor.
+-- TESTING: quickbar behaviour not yet confirmed in game.
 local item = table.deepcopy(data.raw.item[shared.base_name])
 item.name = shared.name
 item.icon = nil

@@ -26,6 +26,8 @@ back to one, keeping its quality, so it needs no recipe, research or recycling o
   match the inserters you're upgrading; a rule with no quality set targets normal.
 - Blueprints and ghosts of anti-jam stack inserters are built from stack inserter items.
 - Placing a stack inserter item by hand always places a regular stack inserter.
+- Pipetting an anti-jam stack inserter (or its ghost) gives an anti-jam stack inserter
+  ghost cursor, at the same quality.
 
 Requires Space Age (Factorio 2.1).
 
