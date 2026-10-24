@@ -21,6 +21,11 @@ Two design directions:
   A  "open tub"   - close to vanilla: open-topped box full of machinery.
   B  "foundry"    - a heavy cast housing over the back half, the gear stack
                     in a front-left well, a stamping press over the work bed.
+  C  "octagon"    - (the chosen one) a tapered octagonal tub under a roof with
+                    cutaways: offset meshing gears through a slot, a piston
+                    through a hatch (rests, then rises: PISTON), a chain over
+                    still sprockets, a valve handwheel, and a pressure gauge at
+                    the back whose needle flicks as the piston lifts.
 
 Units are tiles. x right, y up, z toward the camera (south).
 
@@ -143,6 +148,44 @@ def gear_parts(radius, teeth, thick, mat, hub_mat, spokes=0, bore=True, rim=0.22
     if bore:
         parts.append(cyl(radius * 0.1, thick * 1.7, (0, 0, 0), M["iron_dark"], rot=(90, 0, 0), seg=16))
     return parts
+
+
+def gear_outline(radius, teeth, thick, tooth_w=0.5, step=0.012):
+    """The visible edges of gear_parts (unspoked) as polylines in its own frame
+    (axle along z), for a pencil that turns with the gear: the toothed profile
+    on each face and the raised web's edge. Built one tooth at a
+    time from the same template, so every tooth has the same points."""
+    pitch = 2 * math.pi / teeth
+    tw = 2 * math.pi * radius / teeth * tooth_w
+    th = radius * (0.22 if teeth <= 18 else 0.16)
+    tip = radius + 0.85 * th
+    base = math.sqrt(max(radius ** 2 - (tw / 2) ** 2, 1e-9))
+    half = math.asin(min(1.0, (tw / 2) / radius))  # the angle a tooth's side meets the rim at
+
+    def seg(p, q):
+        n = max(1, int(math.ceil(math.dist(p, q) / step)))
+        return [(p[0] + (q[0] - p[0]) * i / n, p[1] + (q[1] - p[1]) * i / n) for i in range(n)]
+
+    def arc(rad, a0, a1):
+        n = max(1, int(math.ceil(rad * abs(a1 - a0) / step)))
+        return [(rad * math.cos(a0 + (a1 - a0) * i / n), rad * math.sin(a0 + (a1 - a0) * i / n)) for i in range(n)]
+
+    # tooth 0 points along +x; walk counter-clockwise: up its trailing side, across the tip, down, along the rim
+    t = [(base, -tw / 2), (tip, -tw / 2), (tip, tw / 2), (base, tw / 2)]
+    prof = seg(t[0], t[1]) + seg(t[1], t[2]) + seg(t[2], t[3]) + arc(radius, half, pitch - half)
+
+    def ring(tmpl, z):
+        pts = []
+        for i in range(teeth):
+            c, sn = math.cos(i * pitch), math.sin(i * pitch)
+            pts += [(round(x * c - y * sn, 4), round(x * sn + y * c, 4), round(z, 4)) for x, y in tmpl]
+        return [list(q) for q in pts + pts[:1]]  # closed: the first point again
+
+    lines = []
+    for z in (thick / 2, -thick / 2):
+        lines.append(ring(prof, z))
+        lines.append(ring(arc(radius * 0.72, 0, pitch), z * 1.15))
+    return lines
 
 
 def handwheel_parts(radius, mat, hub_mat, spokes=4, rim=0.11, spoke=0.07):
@@ -469,13 +512,13 @@ def chain_loop(phase, a, b, link=0.07, ring_r=0.1, paint=False, info=None):
             w = link * 0.3 + 0.012
             corners = [(0, side * r - w, 0.0), (L, side * r - w, 0.0), (L, side * r + w, 0.0), (0, side * r + w, 0.0)]
             info.setdefault("slide", {})[name] = {"offset": [direction * travel * c for c in u], "clip": [_to_world(R, a, c) for c in corners], "anchor": list(a)}
-    # the sprockets, under the chain: as many teeth as links round them, tips just inside the chain
-    rs = (r - 0.014) / 1.187
+    # the sprockets, under the chain: still discs, the same from every angle (the
+    # chain hides where teeth would be), painted once with the machine; the chain
+    # running round them is what shows them turning
+    rs = r - 0.022
     centres = [a, _to_world(R, a, (L, 0, 0))]
-    spk = spun(gear_parts(rs, n_ring, 0.06, M["steel"], M["brass"], bore=False), ang)
-    sb = spun(gear_parts(rs, n_ring, 0.06, M["steel"], M["brass"], bore=False), ang)
-    for q in sb:
-        q["position"][0] += L
+    spk = sprocket_disc_parts(rs, 0.06, MATTE_STEEL, MATTE_BRASS)
+    sb = [dict(q, position=[q["position"][0] + L, q["position"][1], q["position"][2]]) for q in sprocket_disc_parts(rs, 0.06, MATTE_STEEL, MATTE_BRASS)]
     objs.append(obj("chain_sprockets", spk + sb, pos=a, rot=(-90, yaw, 0)))
     # the arcs: links round the outer half of each sprocket, turning with it
     # (a link counts while its centre is within half a pitch of the outer half: the clip trims the rest)
@@ -495,10 +538,8 @@ def chain_loop(phase, a, b, link=0.07, ring_r=0.1, paint=False, info=None):
         x0, x1 = xs
         clips.append([_to_world(R, a, c) for c in ((x0, -(r + w), 0.0), (x1, -(r + w), 0.0), (x1, r + w, 0.0), (x0, r + w, 0.0))])
     if info is not None:
-        info.setdefault("rotors", []).append("chain_sprockets")
         ax, rf = _to_world(R, (0, 0, 0), (0, 0, 1)), _to_world(R, (0, 0, 0), (1, 0, 0))
         an = info.setdefault("anchors", {})
-        an["chain_sprockets"] = [{"center": list(c), "axis": ax, "ref": rf, "angle": ang} for c in centres]
         for k, c in enumerate(centres):
             an[f"chain_arc_{k}"] = [{"center": list(c), "axis": ax, "ref": rf, "angle": ang}]
         info["arcs"] = {"objects": ["chain_arc_0", "chain_arc_1"], "clip": clips}
@@ -907,6 +948,9 @@ def check_gear_clearance(info, openings_slot, roof_y, o=OCT, margin=0.02):
     return sorted(set(problems))
 
 
+GEAR_OUTLINES = {}
+
+
 def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
     """info (a dict) collects what moves and how, for layered animation:
     info["rotors"] (objects repainted each frame) and info["slide"] (objects
@@ -948,14 +992,18 @@ def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
     if tier >= 2:
         objs += chain_loop(phase, a=(0.15, top + 0.07, -0.7), b=(0.82, top + 0.07, -0.42), paint=paint_chain, info=info)
         objs.append(obj("chain_posts", [cyl(0.05, 0.07, (0.15, top + 0.035, -0.7), M["iron"], seg=12), cyl(0.05, 0.07, (0.82, top + 0.035, -0.42), M["iron"], seg=12)]))
-    # a chunky dark gear at the back, standing in a bearing block (vanilla's gear on the back wall)
-    bg_r, bg_teeth = 0.2, 10
-    bg_pos = (0.05, top + bg_r + 0.13, -0.96)
-    bg_ang = spin(phase, bg_teeth, -1)
-    objs.append(obj("back_gear", spun(gear_parts(bg_r, bg_teeth, 0.1, M["iron_dark"], M["brass"], spokes=5, rim=0.34, tooth_w=0.62), bg_ang), pos=bg_pos))
-    objs.append(obj("back_gear_block", [box((0.34, 0.1, 0.24), (bg_pos[0], top + 0.05, bg_pos[2]), M["iron"]),  # the block
-                                        box((0.08, bg_pos[1] - top, 0.06), (bg_pos[0], (top + bg_pos[1]) / 2, bg_pos[2] - 0.1), M["iron"]),  # cheek behind
-                                        cyl(0.045, 0.2, (bg_pos[0], bg_pos[1], bg_pos[2] - 0.05), M["steel"], rot=(90, 0, 0), seg=16)]))  # the axle
+    # a pressure gauge at the back on a stand, piped to the motor: its needle flicks
+    # up as the piston starts to rise (vanilla's back-wall gear's spot)
+    gr = 0.15
+    gpos, grot = (0.05, top + 0.36, -0.97), (-40, 0, 0)
+    objs.append(obj("pressure_gauge", gauge_dial_parts(gr), pos=gpos, rot=grot))
+    objs.append(obj("gauge_stand", [box((0.26, 0.08, 0.2), (gpos[0], top + 0.04, gpos[2]), M["iron"]),  # base block
+                                    cyl(0.035, gpos[1] - top - 0.08, (gpos[0], (gpos[1] + top) / 2, gpos[2] - 0.07), M["iron"], seg=14),  # post
+                                    cyl(0.028, 0.5, (gpos[0] - 0.25, top + 0.035, gpos[2]), M["copper"], rot=(0, 0, 90), seg=12),  # line to the motor
+                                    cyl(0.028, 0.14, (gpos[0] - 0.5, top + 0.035, gpos[2] + 0.07), M["copper"], rot=(90, 0, 0), seg=12),
+                                    cyl(0.04, 0.05, (gpos[0] - 0.5, top + 0.035, gpos[2]), MATTE_BRASS, seg=12)]))
+    n_ang = needle_angle(phase)
+    objs.append(obj("gauge_needle", spun(gauge_needle_parts(gr), 135 + n_ang), pos=gpos, rot=grot))
     objs.append(obj("handwheel_valve", [cyl(0.05, 0.14, (0, 0.07, 0), M["steel"], seg=14), box((0.14, 0.08, 0.14), (0, 0.02, 0), M["iron"])], pos=(0.88, top, 0.12)))
     hw_pos, hw_rot = (0.88, top + 0.16, 0.12), (-70, 0, 0)
     objs.append(obj("handwheel", spun(handwheel_parts(0.16, MATTE_BRASS, MATTE_STEEL, rim=0.2, spoke=0.14), phase * 90), pos=hw_pos, rot=hw_rot))
@@ -967,7 +1015,7 @@ def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
     objs.append(obj("gauge", [cyl(0.09, 0.04, (0, 0, 0), M["brass"], rot=(90, 0, 0), seg=28), cyl(0.07, 0.05, (0, 0, 0.005), M["glass"], rot=(90, 0, 0), seg=28),
                               box((0.05, 0.1, 0.05), (0, -0.08, -0.02), M["iron"])], pos=(0.1, top + 0.12, 0.85), rot=(-35, 0, 0)))
     info.setdefault("rotors", [])
-    info["rotors"] = [o["name"] for o in gears if not o["name"].endswith("_bearing")] + ["handwheel", "back_gear"] + info["rotors"]
+    info["rotors"] = [o["name"] for o in gears if not o["name"].endswith("_bearing")] + ["handwheel", "gauge_needle"] + info["rotors"]
     # where each turning part is and how far it has turned, so its strokes can turn with it
     an = info.setdefault("anchors", {})
     for o in gears:
@@ -977,10 +1025,12 @@ def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
         i = int(o["name"].split("_")[1])
         gr = ginfo["gears"][i]
         ang = gr["base"] + spin(phase, gr["teeth"], 1 if i % 2 == 0 else -1)
-        an[o["name"]] = [{"center": list(o["position"]), "axis": _to_world(R, (0, 0, 0), (0, 0, 1)), "ref": _to_world(R, (0, 0, 0), (1, 0, 0)), "angle": ang}]
+        an[o["name"]] = [{"center": list(o["position"]), "axis": _to_world(R, (0, 0, 0), (0, 0, 1)), "ref": _to_world(R, (0, 0, 0), (1, 0, 0)), "angle": ang,
+                          "teeth": gr["teeth"], "outline": GEAR_OUTLINES.setdefault(i, gear_outline(gr["r"], gr["teeth"], 0.09))}]  # every tooth painted alike
     R = _euler(*hw_rot)
     an["handwheel"] = [{"center": list(hw_pos), "axis": _to_world(R, (0, 0, 0), (0, 0, 1)), "ref": _to_world(R, (0, 0, 0), (1, 0, 0)), "angle": phase * 90}]
-    an["back_gear"] = [{"center": list(bg_pos), "axis": [0.0, 0.0, 1.0], "ref": [1.0, 0.0, 0.0], "angle": bg_ang}]
+    R = _euler(*grot)
+    an["gauge_needle"] = [{"center": list(gpos), "axis": _to_world(R, (0, 0, 0), (0, 0, 1)), "ref": _to_world(R, (0, 0, 0), (1, 0, 0)), "angle": 135 + n_ang}]
     return objs
 
 
@@ -1140,7 +1190,7 @@ MOVER_OVERRIDES = ["paint.edge.fade=0", "paint.edge.alpha=0.45", "paint.edge.aa=
 # Piston motion over one loop: lift 0 (bottom) .. 1 (top). `floor` clips a sine from below,
 # so the piston rests at the bottom while the sine is under it and rises in a cam-like hump;
 # `strokes` is how many humps per loop; `ease` shapes the hump (1 = sine; >1 sharper top).
-PISTON = {"floor": -1.0, "strokes": 1, "ease": 1.0}
+PISTON = {"floor": -0.3, "strokes": 1, "ease": 1.0}  # B: rests at the bottom ~40% of the loop
 
 
 def piston_lift(phase, floor=None, strokes=None, ease=None):
@@ -1152,6 +1202,55 @@ def piston_lift(phase, floor=None, strokes=None, ease=None):
         return 0.5 + 0.5 * s
     u = (max(s, floor) - floor) / (1 - floor)
     return u ** ease
+
+
+def piston_liftoff(floor=None, strokes=None):
+    """The phase at which the piston leaves the bottom of its stroke (first hump)."""
+    floor = PISTON["floor"] if floor is None else floor
+    strokes = PISTON["strokes"] if strokes is None else strokes
+    if floor <= -1:
+        return 0.75 / strokes  # plain sine: the bottom of the stroke
+    return (math.asin(floor) / (2 * math.pi)) % 1.0 / strokes
+
+
+def needle_angle(phase):
+    """Pressure-gauge needle (degrees, counter-clockwise from its rest at the low
+    end): a flick up the dial as the piston leaves the bottom, a little
+    overshoot, then it sinks back while the piston rests."""
+    dt = (phase - piston_liftoff()) % 1.0
+    kick = (1 - math.exp(-dt / 0.02)) * math.exp(-dt / 0.16) * (1 + 0.35 * math.sin(2 * math.pi * dt / 0.22))
+    return -170.0 * max(kick, 0.0)
+
+
+GAUGE_FACE = {"color": "#e6dcc0", "roughness": 0.85, "specular": 0.05}
+GAUGE_RED = {"color": "#b4432e", "roughness": 0.8, "specular": 0.05}
+
+
+def gauge_dial_parts(r):
+    """A pressure gauge's dial in the local XY plane, facing +z: face, bezel, ticks, a red zone."""
+    parts = [cyl(r, 0.03, (0, 0, 0), GAUGE_FACE, rot=(90, 0, 0), seg=48),
+             cyl(r * 1.08, 0.05, (0, 0, -0.02), MATTE_BRASS, rot=(90, 0, 0), seg=48),
+             tor(r * 1.02, r * 0.13, (0, 0, 0.015), MATTE_BRASS, seg=48, sides=10)]
+    for i in range(9):  # ticks from the low end (lower left) round the top to the high end (lower right)
+        a = math.radians(225 - 270 * i / 8)
+        parts.append(box((r * 0.07, r * 0.2, 0.01), (r * 0.78 * math.cos(a), r * 0.78 * math.sin(a), 0.018), M["iron_dark"], rot=(0, 0, math.degrees(a) - 90)))
+    parts.append(tor(r * 0.62, r * 0.06, (0, 0, 0.017), GAUGE_RED, rot=(0, 0, -45), arc=55, seg=24, sides=6))
+    return parts
+
+
+def gauge_needle_parts(r):
+    """The needle, pointing along local +y before it is turned, with a brass cap."""
+    return [box((r * 0.11, r * 0.8, 0.012), (0, r * 0.3, 0.03), M["iron_dark"]),
+            cyl(r * 0.14, 0.03, (0, 0, 0.035), MATTE_BRASS, rot=(90, 0, 0), seg=20)]
+
+
+def sprocket_disc_parts(r, thick, mat, hub_mat):
+    """A sprocket drawn still: the same from every angle (its teeth are under the
+    chain), a dished web and a hub, so it can be painted once with the machine."""
+    t = thick / 2
+    prof = [(0, -t), (r, -t), (r, t), (r * 0.82, t), (r * 0.76, t * 0.4), (r * 0.42, t * 0.4), (r * 0.38, t), (0, t)]
+    return [lathe(prof, (0, 0, 0), mat, rot=(90, 0, 0), seg=48),
+            cyl(r * 0.3, thick * 1.6, (0, 0, 0), hub_mat, rot=(90, 0, 0), seg=24)]
 
 
 def write_animation_spec(out, key, tier, fn, colour, infos):
