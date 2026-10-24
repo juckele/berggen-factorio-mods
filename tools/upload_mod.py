@@ -282,7 +282,7 @@ def publish_metadata(mod_dir: Path, info: dict, category: str | None, license_: 
     if not license_:
         for candidate in ("LICENSE.md", "LICENSE", "LICENSE.txt"):
             path = mod_dir / candidate
-            if path.is_file() and path.read_text(encoding="utf-8").lstrip().startswith("MIT License"):
+            if path.is_file() and "MIT License" in path.read_text(encoding="utf-8")[:500]:
                 license_ = "default_mit"
                 break
     if not category:

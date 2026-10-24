@@ -57,3 +57,9 @@ be used to cheese quality.
 ## Compatibility
 
 Works with mods that change the stack inserter: it follows changes to its recipe and research.
+
+## Credits
+
+The anti-jam stack inserter's graphics are adapted from Factorio's stack inserter and the
+classic filter inserter, © Wube Software Ltd., and included under the Factorio Terms of
+Service. They aren't covered by this mod's MIT license; see `LICENSE-graphics.md`.

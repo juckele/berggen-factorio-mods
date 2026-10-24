@@ -1,3 +1,6 @@
+This license covers the mod's code and text. The graphics are adapted from Factorio and are
+not covered by it; see LICENSE-graphics.md.
+
 MIT License
 
 Copyright (c) 2026 John Uckele
