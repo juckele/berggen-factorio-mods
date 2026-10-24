@@ -8,8 +8,8 @@ if settings.startup["anti-jam-stack-inserter-mode"].value ~= "smart-swapping" th
 -- With smart swapping the anti-jam stack inserter is built from, and mines to, stack
 -- inserter items. Its own item only ever lives in a player's cursor: stack inserters are
 -- swapped for it when the player wants to place anti-jam stack inserters, and it turns
--- back into stack inserters wherever it ends up outside the cursor. That keeps construction robots, logistics and
--- recycling dealing only with stack inserters.
+-- back into stack inserters wherever it ends up outside the cursor. That keeps
+-- construction robots, logistics and recycling dealing only with stack inserters.
 
 local function is_anti_jam(entity)
   if not (entity and entity.valid) then return false end
@@ -18,8 +18,10 @@ local function is_anti_jam(entity)
 end
 
 -- Replace every anti-jam item in an inventory with the same number of stack inserters.
+-- Each convert_* function returns how many items it converted.
 local function convert_inventory(inventory)
-  if not (inventory and inventory.valid) then return end
+  if not (inventory and inventory.valid) then return 0 end
+  local converted = 0
   for _, item in pairs(inventory.get_contents()) do
     if item.name == NAME then
       local removed = inventory.remove({name = NAME, count = item.count, quality = item.quality})
@@ -29,31 +31,53 @@ local function convert_inventory(inventory)
           -- Shouldn't happen (same slot usage); put back what didn't fit.
           inventory.insert({name = NAME, count = removed - inserted, quality = item.quality})
         end
+        converted = converted + inserted
       end
     end
   end
+  return converted
 end
 
 local function convert_stack(stack)
   if stack and stack.valid_for_read and stack.name == NAME then
-    stack.set_stack({name = BASE, count = stack.count, quality = stack.quality.name})
+    local count = stack.count
+    stack.set_stack({name = BASE, count = count, quality = stack.quality.name})
+    return count
   end
+  return 0
 end
 
+local BELT_TYPES = {
+  ["transport-belt"] = true, ["underground-belt"] = true, ["splitter"] = true,
+  ["lane-splitter"] = true, ["loader"] = true, ["loader-1x1"] = true, ["linked-belt"] = true,
+}
+
+-- An entity's inventories, an item on the ground, an inserter's hand, or items on a belt.
 local function convert_entity(entity)
-  if not (entity and entity.valid) then return end
+  if not (entity and entity.valid) then return 0 end
   if entity.type == "item-entity" then
-    convert_stack(entity.stack)
-    return
+    return convert_stack(entity.stack)
   end
+  local converted = 0
   for i = 1, entity.get_max_inventory_index() do
-    convert_inventory(entity.get_inventory(i))
+    converted = converted + convert_inventory(entity.get_inventory(i))
   end
+  if entity.type == "inserter" then
+    converted = converted + convert_stack(entity.held_stack)
+  end
+  if BELT_TYPES[entity.type] then
+    for i = 1, entity.get_max_transport_line_index() do
+      for _, item in pairs(entity.get_transport_line(i).get_detailed_contents()) do
+        converted = converted + convert_stack(item.stack)
+      end
+    end
+  end
+  return converted
 end
 
 local function convert_player_inventories(player)
-  convert_inventory(player.get_main_inventory())
-  convert_inventory(player.get_inventory(defines.inventory.character_trash))
+  return convert_inventory(player.get_main_inventory())
+    + convert_inventory(player.get_inventory(defines.inventory.character_trash))
 end
 
 -- Holding an anti-jam ghost while carrying stack inserters of that quality: hold real
@@ -139,3 +163,26 @@ local function convert_cursor(event)
 end
 script.on_event(defines.events.on_pre_player_died, convert_cursor)
 script.on_event(defines.events.on_pre_player_left_game, convert_cursor)
+
+-- Switching a save to smart swapping from a distinct-item mode leaves real anti-jam items
+-- around. Sweep the whole game once and turn them all into stack inserters.
+local function convert_everything()
+  local converted = 0
+  for _, surface in pairs(game.surfaces) do
+    for _, entity in pairs(surface.find_entities_filtered({})) do
+      converted = converted + convert_entity(entity)
+    end
+  end
+  for _, player in pairs(game.players) do
+    converted = converted + convert_player_inventories(player) + convert_stack(player.cursor_stack)
+  end
+  if converted > 0 then
+    game.print({"anti-jam-stack-inserter.converted-items", converted})
+  end
+end
+
+script.on_configuration_changed(function(data)
+  if data.mod_startup_settings_changed then
+    convert_everything()
+  end
+end)

@@ -36,6 +36,9 @@ needs no recipe, research or recycling of its own.
   carrying stack inserters of its quality swaps it for real ones too.
 - Anti-jam stack inserter items only exist in the cursor. Anywhere else they end up (your
   inventory or trash, a chest or vehicle, the ground) they turn back into stack inserters.
+- Switching an existing save to smart swapping turns every anti-jam stack inserter item in
+  the game (chests, vehicles, robots, belts, inserter hands, the ground, players) back into
+  stack inserters, once, when the save loads.
 
 ### Distinct item
 
