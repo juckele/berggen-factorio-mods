@@ -16,10 +16,14 @@ Measured on Factorio 2.1.23:
 - From a belt it swings about 22 ticks (~0.37 s) after its last pickup when no matching
   item arrives, the same with or without inserter capacity research.
 
-## Building one
+## Item mode
 
-There is no anti-jam stack inserter item. It's built from a stack inserter item and mines
-back to one, keeping its quality, so it needs no recipe, research or recycling of its own.
+A startup setting chooses how you get anti-jam stack inserters.
+
+### Smart swapping (default)
+
+It's built from a stack inserter item and mines back to one, keeping its quality, so it
+needs no recipe, research or recycling of its own.
 
 - Use an upgrade planner to swap placed stack inserters to anti-jam stack inserters (or
   back). Construction robots do it at no item cost. Set the planner's target quality to
@@ -32,6 +36,19 @@ back to one, keeping its quality, so it needs no recipe, research or recycling o
   carrying stack inserters of its quality swaps it for real ones too.
 - Anti-jam stack inserter items only exist in the cursor. Anywhere else they end up (your
   inventory or trash, a chest or vehicle, the ground) they turn back into stack inserters.
+
+### Distinct item
+
+An ordinary item with the same recipe and unlock as the stack inserter. The recipe and
+unlock are copied from the stack inserter in `data-final-fixes`, so changes other mods make
+to them carry over. It recycles to the stack inserter's ingredients.
+
+### Distinct item with quick swap
+
+As distinct item, plus quick recipes that turn a stack inserter into an anti-jam stack
+inserter and back. They keep the item's quality and don't accept modules, so they can't
+roll quality upgrades. Their icons follow Space Age's nutrient recipes: the input at the
+top left, the output slightly larger at the bottom right, in front.
 
 Requires Space Age (Factorio 2.1).
 

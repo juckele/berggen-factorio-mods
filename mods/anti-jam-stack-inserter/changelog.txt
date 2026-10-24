@@ -3,6 +3,8 @@ Version: 1.0.0
 Date: 2026-10-23
   Features:
     - Anti-jam stack inserter: a stack inserter that swings without waiting for a full hand.
-    - Built from and mined to stack inserter items: place it with an upgrade planner, blueprint or ghost.
-    - Pipetting an anti-jam stack inserter or its ghost lets you place real ones from your stack inserters,
-      or gives an anti-jam stack inserter ghost cursor if you have none.
+    - Startup setting "Item mode":
+      - Smart swapping (default): built from and mined to stack inserter items; place it with an upgrade
+        planner, blueprint, ghost or pipette.
+      - Distinct item: its own item with the stack inserter's recipe.
+      - Distinct item with quick swap: plus quick conversion recipes between stack and anti-jam stack inserters.

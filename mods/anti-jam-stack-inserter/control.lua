@@ -1,10 +1,14 @@
 local NAME = "anti-jam-stack-inserter"
 local BASE = "stack-inserter"
 
--- The anti-jam stack inserter is built from, and mines to, stack inserter items. Its own
--- item only ever lives in a player's cursor: stack inserters are swapped for it when the
--- player wants to place anti-jam stack inserters, and it turns back into stack inserters
--- wherever it ends up outside the cursor. That keeps construction robots, logistics and
+-- Everything here is for the "smart swapping" mode. With a distinct item it's an ordinary
+-- inserter and needs no scripting.
+if settings.startup["anti-jam-stack-inserter-mode"].value ~= "smart-swapping" then return end
+
+-- With smart swapping the anti-jam stack inserter is built from, and mines to, stack
+-- inserter items. Its own item only ever lives in a player's cursor: stack inserters are
+-- swapped for it when the player wants to place anti-jam stack inserters, and it turns
+-- back into stack inserters wherever it ends up outside the cursor. That keeps construction robots, logistics and
 -- recycling dealing only with stack inserters.
 
 local function is_anti_jam(entity)
