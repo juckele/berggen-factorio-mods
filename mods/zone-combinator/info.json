@@ -1,13 +1,13 @@
 {
   "name": "zone-combinator",
-  "version": "1.1.1",
+  "version": "2.1.0",
   "title": "Space Exploration Zone Combinator",
   "author": "berggen",
   "contact": "https://github.com/juckele/zone-combinator/issues",
-  "factorio_version": "1.1",
+  "factorio_version": "2.1",
   "dependencies": [
-    "base",
-    "space-exploration >= 0.6.119"
+    "base >= 2.1.0",
+    "space-exploration >= 0.7.0"
   ],
   "description": "A combinator that outputs detailed information about the Space Exploration zone in which it is placed.",
   "package": {

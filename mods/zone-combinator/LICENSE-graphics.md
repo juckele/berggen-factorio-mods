@@ -13,7 +13,6 @@ The files are:
 
 ./constant-combinator-icon-mask.png
 ./hr-constant-combinator-mask.png
-./graphics/entity/zone-combinator/constant-combinator-mask.png
 ./graphics/entity/zone-combinator/hr-constant-combinator-mask.png
 ./graphics/icons/zone-combinator/constant-combinator-mask.png
 ./thumbnail.png
