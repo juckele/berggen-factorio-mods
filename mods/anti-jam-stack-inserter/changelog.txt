@@ -3,4 +3,4 @@ Version: 1.0.0
 Date: 2026-10-23
   Features:
     - Anti-jam stack inserter: a stack inserter that swings without waiting for a full hand.
-    - Startup setting for quick conversion recipes between stack and anti-jam stack inserters.
+    - Built from and mined to stack inserter items: place it with an upgrade planner, blueprint or ghost.
