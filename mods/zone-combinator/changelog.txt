@@ -13,6 +13,13 @@ Date: 2026-10-22
   Graphics:
     - Removed the low resolution sprite; the high resolution tint mask is now the only entity sprite.
 ---------------------------------------------------------------------------------------------------
+Version: 1.1.1
+Date: 2026-10-24
+  Info:
+    - Clarified licensing: the combinator masks and thumbnail are adapted from Factorio's art (c) Wube
+      Software Ltd., and the signal icons are Twemoji under CC BY 4.0. Neither is covered by the mod's
+      MIT license. See LICENSE-graphics.md and LICENSE-emoji.md.
+---------------------------------------------------------------------------------------------------
 Version: 1.1.0
 Date: 2023-10-29
   Changes:

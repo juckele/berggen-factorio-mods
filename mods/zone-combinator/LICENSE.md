@@ -1,3 +1,7 @@
+This license covers the mod's code and text. The graphics are not covered by it: the
+combinator masks and thumbnail are adapted from Factorio (see LICENSE-graphics.md), and the
+signal icons are Twemoji (see LICENSE-emoji.md).
+
 MIT License
 
 Copyright (c) 2023 Davis Cook, John Uckele
