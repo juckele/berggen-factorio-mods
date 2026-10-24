@@ -28,4 +28,5 @@ Combinator that outputs detailed information about the zone in which it is place
 ## Credits
 1. [test447](https://mods.factorio.com/user/test447) - code, combinator mask
 1. [berggen](https://mods.factorio.com/user/berggen) - code
-1. https://emojipedia.org/twitter/twemoji-15.0.1 - virtual signal emoji
+1. [Twemoji 15.0.1](https://github.com/jdecked/twemoji), © Twitter, Inc. and other contributors - virtual signal emoji, under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); see `LICENSE-emoji.md`
+1. The combinator masks and thumbnail are adapted from Factorio's constant combinator, © Wube Software Ltd., and included under the Factorio Terms of Service. They aren't covered by this mod's MIT license; see `LICENSE-graphics.md`.

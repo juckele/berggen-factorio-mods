@@ -1,0 +1,17 @@
+---------------------------------------------------------------------------------------------------
+Version: 1.0.1
+Date: 2026-10-24
+  Info:
+    - Clarified licensing: the graphics are adapted from Factorio's art (c) Wube Software Ltd. and are not
+      covered by the mod's MIT license. See LICENSE-graphics.md.
+---------------------------------------------------------------------------------------------------
+Version: 1.0.0
+Date: 2026-10-23
+  Features:
+    - Anti-jam stack inserter: a stack inserter that swings without waiting for a full hand.
+    - Startup setting "Item mode":
+      - Smart swapping (default): built from and mined to stack inserter items; place it with an upgrade
+        planner, blueprint, ghost or pipette. Switching a save to it turns existing anti-jam stack inserter
+        items back into stack inserters.
+      - Distinct item: its own item with the stack inserter's recipe.
+      - Distinct item with quick swap: plus quick conversion recipes between stack and anti-jam stack inserters.
