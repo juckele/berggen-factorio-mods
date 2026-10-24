@@ -183,8 +183,8 @@ def gear_outline(radius, teeth, thick, tooth_w=0.5, step=0.012):
 
     lines = []
     for z in (thick / 2, -thick / 2):
-        lines.append(ring(prof, z))
-        lines.append(ring(arc(radius * 0.72, 0, pitch), z * 1.15))
+        lines.append({"points": ring(prof, z), "weight": 1.0})
+        lines.append({"points": ring(arc(radius * 0.72, 0, pitch), z * 1.15), "weight": 0.5})  # the web's edge, fainter
     return lines
 
 
@@ -992,18 +992,17 @@ def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
     if tier >= 2:
         objs += chain_loop(phase, a=(0.15, top + 0.07, -0.7), b=(0.82, top + 0.07, -0.42), paint=paint_chain, info=info)
         objs.append(obj("chain_posts", [cyl(0.05, 0.07, (0.15, top + 0.035, -0.7), M["iron"], seg=12), cyl(0.05, 0.07, (0.82, top + 0.035, -0.42), M["iron"], seg=12)]))
-    # a pressure gauge at the back on a stand, piped to the motor: its needle flicks
-    # up as the piston starts to rise (vanilla's back-wall gear's spot)
+    # a half-round pressure meter low at the back, piped to the motor: its needle
+    # rises as the piston starts to lift (vanilla's back-wall gear's spot)
     gr = 0.15
-    gpos, grot = (0.05, top + 0.36, -0.97), (-40, 0, 0)
+    gpos, grot = (0.05, top + 0.2, -0.97), (-40, 0, 0)
     objs.append(obj("pressure_gauge", gauge_dial_parts(gr), pos=gpos, rot=grot))
-    objs.append(obj("gauge_stand", [box((0.26, 0.08, 0.2), (gpos[0], top + 0.04, gpos[2]), M["iron"]),  # base block
-                                    cyl(0.035, gpos[1] - top - 0.08, (gpos[0], (gpos[1] + top) / 2, gpos[2] - 0.07), M["iron"], seg=14),  # post
-                                    cyl(0.028, 0.5, (gpos[0] - 0.25, top + 0.035, gpos[2]), M["copper"], rot=(0, 0, 90), seg=12),  # line to the motor
-                                    cyl(0.028, 0.14, (gpos[0] - 0.5, top + 0.035, gpos[2] + 0.07), M["copper"], rot=(90, 0, 0), seg=12),
-                                    cyl(0.04, 0.05, (gpos[0] - 0.5, top + 0.035, gpos[2]), MATTE_BRASS, seg=12)]))
+    objs.append(obj("gauge_stand", [box((0.42, 0.1, 0.26), (gpos[0], top + 0.05, gpos[2] - 0.02), M["iron"]),  # plinth
+                                    cyl(0.028, 0.5, (gpos[0] - 0.25, top + 0.035, gpos[2] + 0.06), M["copper"], rot=(0, 0, 90), seg=12),  # line to the motor
+                                    cyl(0.028, 0.08, (gpos[0] - 0.5, top + 0.035, gpos[2] + 0.1), M["copper"], rot=(90, 0, 0), seg=12),
+                                    cyl(0.04, 0.05, (gpos[0] - 0.5, top + 0.035, gpos[2] + 0.06), MATTE_BRASS, seg=12)]))
     n_ang = needle_angle(phase)
-    objs.append(obj("gauge_needle", spun(gauge_needle_parts(gr), 135 + n_ang), pos=gpos, rot=grot))
+    objs.append(obj("gauge_needle", spun(gauge_needle_parts(gr), GAUGE_REST - 90 + n_ang), pos=gpos, rot=grot))
     objs.append(obj("handwheel_valve", [cyl(0.05, 0.14, (0, 0.07, 0), M["steel"], seg=14), box((0.14, 0.08, 0.14), (0, 0.02, 0), M["iron"])], pos=(0.88, top, 0.12)))
     hw_pos, hw_rot = (0.88, top + 0.16, 0.12), (-70, 0, 0)
     objs.append(obj("handwheel", spun(handwheel_parts(0.16, MATTE_BRASS, MATTE_STEEL, rim=0.2, spoke=0.14), phase * 90), pos=hw_pos, rot=hw_rot))
@@ -1030,7 +1029,7 @@ def machine_c(tier, phase, colour=None, info=None, paint_chain=False):
     R = _euler(*hw_rot)
     an["handwheel"] = [{"center": list(hw_pos), "axis": _to_world(R, (0, 0, 0), (0, 0, 1)), "ref": _to_world(R, (0, 0, 0), (1, 0, 0)), "angle": phase * 90}]
     R = _euler(*grot)
-    an["gauge_needle"] = [{"center": list(gpos), "axis": _to_world(R, (0, 0, 0), (0, 0, 1)), "ref": _to_world(R, (0, 0, 0), (1, 0, 0)), "angle": 135 + n_ang}]
+    an["gauge_needle"] = [{"center": list(gpos), "axis": _to_world(R, (0, 0, 0), (0, 0, 1)), "ref": _to_world(R, (0, 0, 0), (1, 0, 0)), "angle": GAUGE_REST - 90 + n_ang}]
     return objs
 
 
@@ -1213,28 +1212,80 @@ def piston_liftoff(floor=None, strokes=None):
     return (math.asin(floor) / (2 * math.pi)) % 1.0 / strokes
 
 
+# The gauge needle's motion over the loop. A pressure pulse starts as the piston
+# leaves the bottom (it jumps to 1 and dies away over `pulse`); the needle is a
+# spring following it (natural `period`, damping `zeta`: 1 = no overshoot) or,
+# with mode "lag", trails the piston's own lift by `tau`. "kick" is the first
+# version (an instant flick).
+NEEDLE = {"mode": "spring", "zeta": 0.55, "period": 0.55, "pulse": 0.25}  # B: eased flick (pending a pick)
+NEEDLE_SWEEP = 160.0  # degrees from rest to the top of the scale
+_NEEDLE_CACHE = {}
+
+
+def _needle_curve(n=1600, loops=6):
+    key = (tuple(sorted(NEEDLE.items())), PISTON["floor"], PISTON["strokes"])
+    if key in _NEEDLE_CACHE:
+        return _NEEDLE_CACHE[key]
+    t0 = piston_liftoff()
+    mode = NEEDLE["mode"]
+    ts = [i / n for i in range(n)]
+    if mode == "lag":
+        target = [piston_lift(t) for t in ts]
+    else:
+        target = [math.exp(-((t - t0) % 1.0) / NEEDLE.get("pulse", 0.25)) for t in ts]
+    dt = 1.0 / n
+    x = v = 0.0
+    w = 2 * math.pi / NEEDLE.get("period", 0.2)
+    z = NEEDLE.get("zeta", 1.0)
+    out = [0.0] * n
+    for _ in range(loops):  # run until the loop repeats itself
+        for i in range(n):
+            if mode == "lag":
+                x += (target[i] - x) * dt / NEEDLE.get("tau", 0.06)
+            else:
+                v += (w * w * (target[i] - x) - 2 * z * w * v) * dt
+                x += v * dt
+            out[i] = x
+    peak = max(out) or 1.0
+    curve = [min(max(y / peak * 0.9, -0.03), 1.04) for y in out]
+    _NEEDLE_CACHE[key] = curve
+    return curve
+
+
 def needle_angle(phase):
-    """Pressure-gauge needle (degrees, counter-clockwise from its rest at the low
-    end): a flick up the dial as the piston leaves the bottom, a little
-    overshoot, then it sinks back while the piston rests."""
-    dt = (phase - piston_liftoff()) % 1.0
-    kick = (1 - math.exp(-dt / 0.02)) * math.exp(-dt / 0.16) * (1 + 0.35 * math.sin(2 * math.pi * dt / 0.22))
-    return -170.0 * max(kick, 0.0)
+    """Pressure-gauge needle (degrees, clockwise from its rest at the low end is
+    negative): up the dial after the piston leaves the bottom, back while it rests."""
+    if NEEDLE["mode"] == "kick":
+        dt = (phase - piston_liftoff()) % 1.0
+        kick = (1 - math.exp(-dt / 0.02)) * math.exp(-dt / 0.16) * (1 + 0.35 * math.sin(2 * math.pi * dt / 0.22))
+        return -NEEDLE_SWEEP * min(max(kick, 0.0) * 0.9 / 1.0, 1.04)
+    c = _needle_curve()
+    f = (phase % 1.0) * len(c)
+    i = int(f)
+    y = c[i % len(c)] + (c[(i + 1) % len(c)] - c[i % len(c)]) * (f - i)
+    return -NEEDLE_SWEEP * y
 
 
 GAUGE_FACE = {"color": "#e6dcc0", "roughness": 0.85, "specular": 0.05}
 GAUGE_RED = {"color": "#b4432e", "roughness": 0.8, "specular": 0.05}
+GAUGE_REST = 172.0  # the needle's rest, degrees counter-clockwise from the dial's +x
 
 
 def gauge_dial_parts(r):
-    """A pressure gauge's dial in the local XY plane, facing +z: face, bezel, ticks, a red zone."""
+    """A half-round pressure meter in the local XY plane, facing +z: a dial whose
+    lower half sits behind a squat housing, so the face shows as a half circle
+    over a flat top edge; ticks from the low end (left) over the top to the high
+    end (right), a red zone, a brass bezel round the arc."""
+    edge = -0.06 * r  # the housing's top edge, just under the needle's pivot
     parts = [cyl(r, 0.03, (0, 0, 0), GAUGE_FACE, rot=(90, 0, 0), seg=48),
              cyl(r * 1.08, 0.05, (0, 0, -0.02), MATTE_BRASS, rot=(90, 0, 0), seg=48),
-             tor(r * 1.02, r * 0.13, (0, 0, 0.015), MATTE_BRASS, seg=48, sides=10)]
-    for i in range(9):  # ticks from the low end (lower left) round the top to the high end (lower right)
-        a = math.radians(225 - 270 * i / 8)
+             tor(r * 1.02, r * 0.13, (0, 0, 0.015), MATTE_BRASS, rot=(0, 0, -8), arc=196, seg=48, sides=10),
+             box((r * 2.5, r * 1.1, 0.17), (0, edge - r * 0.55, -0.03), M["iron"]),  # the housing
+             box((r * 2.56, r * 0.12, 0.18), (0, edge - r * 0.06, -0.03), MATTE_BRASS)]  # its brass top strip
+    for i in range(7):
+        a = math.radians(GAUGE_REST - (GAUGE_REST - (GAUGE_REST - NEEDLE_SWEEP)) * i / 6)
         parts.append(box((r * 0.07, r * 0.2, 0.01), (r * 0.78 * math.cos(a), r * 0.78 * math.sin(a), 0.018), M["iron_dark"], rot=(0, 0, math.degrees(a) - 90)))
-    parts.append(tor(r * 0.62, r * 0.06, (0, 0, 0.017), GAUGE_RED, rot=(0, 0, -45), arc=55, seg=24, sides=6))
+    parts.append(tor(r * 0.62, r * 0.06, (0, 0, 0.017), GAUGE_RED, rot=(0, 0, GAUGE_REST - NEEDLE_SWEEP), arc=32, seg=24, sides=6))
     return parts
 
 
@@ -1287,6 +1338,7 @@ def main():
     ap.add_argument("--out", default=str(HERE))
     ap.add_argument("--only", help="one machine, e.g. 2-a")
     ap.add_argument("--piston", help="piston motion: FLOOR[,STROKES[,EASE]], e.g. 0 (sine, rests at the bottom half the loop)")
+    ap.add_argument("--needle", help="gauge needle motion: MODE[,KEY=VALUE...], e.g. spring,zeta=0.5,period=0.25 or lag,tau=0.06 or kick")
     ap.add_argument("--frames", type=int, default=0, help="write N animation frames (phase k/N) of --only as frame_KK.yaml")
     args = ap.parse_args()
     out = Path(args.out)
@@ -1295,6 +1347,10 @@ def main():
         v = [float(x) for x in args.piston.split(",")]
         PISTON.update(dict(zip(["floor", "strokes", "ease"], v)))
         PISTON["strokes"] = int(PISTON["strokes"])
+    if args.needle:
+        mode, *kv = args.needle.split(",")
+        NEEDLE.clear()
+        NEEDLE.update({"mode": mode, **{k: float(v) for k, v in (x.split("=") for x in kv)}})
     if args.frames:
         d, tier, fn, colour = VARIANTS[args.only]
         infos = []
