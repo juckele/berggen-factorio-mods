@@ -34,3 +34,16 @@ if stack_corpse then
 end
 
 data:extend({entity})
+
+-- TESTING: an item that places the anti-jam stack inserter, so it can go on quickbars
+-- (and give a ghost cursor). No recipe and nothing drops it; the entity is still built
+-- from and mined to stack inserter items. Revert this revision if it misbehaves in game.
+local item = table.deepcopy(data.raw.item[shared.base_name])
+item.name = shared.name
+item.icon = nil
+item.icons = util_lib.recolored_icons(data.raw.item[shared.base_name])
+item.place_result = shared.name
+item.order = (item.order or "") .. "-b[anti-jam]"
+item.localised_name = nil
+item.localised_description = nil
+data:extend({item})
