@@ -147,13 +147,11 @@ Built:
 - [x] Hatching weighted dead parent > free space > old, one chunk per hatchling (`nests` test).
 
 Open:
-- [ ] Hatchling arrival: a free-space hatchling walks from the nest to its chunk across the parent's
-      land; check that it looks right in game, and whether it should wait to claim the chunk until
-      it gets there.
+- [x] Hatchling arrival: it owns its chunk and patrol route at once and finds its own way there.
 - [ ] Free space in unexplored land can't be used: a new territory needs an explored chunk, so the
       egg waits for the old-egg rule instead.
 - [ ] Real graphics for the nest and eggs, and hatching effects and sound.
-- [ ] Should eggs show on the map, or only be found by scouting?
+- [x] Eggs show as red dots on the map.
 - [ ] Other ideas from the brainstorm, not planned: bifurcation, births in gaps between two
       territories, budding, fragments surviving a sloppy kill, spawning from volcanoes.
 
