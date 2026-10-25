@@ -4,15 +4,15 @@
 tools/headless/headless.py test tests/vulcanus-demolisher-lifecycle/tests.json
 ```
 
-Takes about 2 minutes on Factorio 2.1. Runner docs: [`tools/headless`](../../tools/headless).
+Takes about 2.5 minutes on Factorio 2.1. Runner docs: [`tools/headless`](../../tools/headless).
 
 | Scenario | What it covers |
 | --- | --- |
-| `new-game` | Fixed seed (12345), mod present from the start. No setup without Vulcanus; setup when Vulcanus is created mid-game; killing a demolisher removes its territory and marks the land cleared; exploring it spawns no new demolisher; neighbouring territories retake all of it; the protected starting area stays empty. |
+| `new-game` | Fixed seed (12345), mod present from the start. No setup without Vulcanus; setup when Vulcanus is created mid-game; killing a demolisher removes its territory and marks the land cleared; exploring it spawns no new demolisher; neighbouring territories expand into all of it; the protected starting area stays empty. |
 | `unprotected` | Same starting save as `established`, protection off: territory grows into the starting area. Then, on a live server over RCON, protection is turned on: nothing is evicted and further growth there is blocked. |
 | `established` | Save that visited Vulcanus and built a small base before the mod was added. Setup on add, safe zone covers the base, nothing removed, base intact, expansion blocked. |
 | `map-settings` | Same starting save as `established`, no interval override. The cooldown follows the map's min/max expansion cooldowns with vanilla's evolution scaling (checked at evolution 0, 0.5 and 1), the first attempt happens after it, and turning map expansion off stops attempts. |
-| `nests` | Growth respects the distance gate and keeps one demolisher per territory. A big demolisher travels to its territory's centre, coils (body within 12 tiles of the site), lays 4 eggs, and returns to patrol. Eggs: too young doesn't hatch; an old egg with the parent alive takes one parent chunk; after a neighbour is killed, a free-space egg takes the parent chunk bordering the cleared land; a destroyed egg is removed; after the parent dies, its land is retaken except the nest chunk, which the last egg takes; the nest and its reservation then go away. Events are driven with `run_event`. |
+| `nests` | Growth respects the distance gate and keeps one demolisher per territory. A big demolisher travels to its territory's centre, coils (body within 12 tiles of the site), lays 4 eggs, and returns to patrol. Eggs: too young doesn't hatch; an old egg with the parent alive takes one parent chunk; after a neighbour is killed, a free-space egg takes the parent chunk bordering the cleared land; a destroyed egg is removed; after the parent dies, its land is expanded into except the nest chunk, which the last egg takes; the nest and its reservation then go away. Events are driven with `run_event`. |
 | `nests-natural` | Every event on its own fast clock with low thresholds and a few kills: growth, nests and hatching all happen, every territory has exactly one demolisher, and egg and nest entities match the mod's state. |
 | `nest-interrupt` | Damaging a demolisher while it coils ends the trip without a nest, and it doesn't retry straight away. |
 | `vibration` | Vulcanus tracks vibration (Nauvis still tracks pollution); every drill and pump type emits it and an assembler doesn't; a fuelled burner drill shows up in the vibration statistics; pollution put into an all-lava chunk falls faster than in an all-rock chunk. |
@@ -20,7 +20,9 @@ Takes about 2 minutes on Factorio 2.1. Runner docs: [`tools/headless`](../../too
 | `no-enemies` | New game in no-enemies mode (Vulcanus inherits it: 15 territories, no demolishers), then the mod added: it warns, leaves the territories alone and runs no events; turning no-enemies mode off clears the empty territories and starts the clocks. |
 | `ping-turret` | A ping turret 80 tiles from a demolisher: no priority list by default; the three demolisher heads are visible prototypes in the enemies group (pickable); tech needs metallurgic science; recipe uses tungsten; the first hit comes within a turn and a cooldown for light damage; about one shell per 15 s; the pinged demolisher goes after the turret and closes in. |
 | `ping-turret-filter` | Priority list of just `big-demolisher` with other targets ignored: no shots and no shells used near small demolishers; switched to `small-demolisher`: it pings small ones and nothing else. |
-| `killed` | Save where 3 demolishers were killed before the mod was added. Also checks the vanilla behaviour the mod builds on (a territory stays after its last demolisher dies). On add, the dead territories are removed and marked cleared; at the default rate, neighbours retake all of it, including unexplored chunks, and exploring those afterwards spawns nothing new. |
+| `expansion-weighting` | A hole cut at a territory's centre and a gap at its edge: in 30 trials, expansion fills the hole first every time. |
+| `wreck` | A neighbour is killed and player buildings (walls, chest, pole, solar panel, no vibration) put on its land next to another territory; when that territory expands over them, the mod sends its demolisher, which destroys them all. |
+| `killed` | Save where 3 demolishers were killed before the mod was added. Also checks the vanilla behaviour the mod builds on (a territory stays after its last demolisher dies). On add, the dead territories are removed and marked cleared; at the default rate, neighbours expand into all of it, including unexplored chunks, and exploring those afterwards spawns nothing new. |
 
 ## Layout
 

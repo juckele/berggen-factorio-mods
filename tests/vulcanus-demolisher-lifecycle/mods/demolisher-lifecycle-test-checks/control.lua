@@ -111,9 +111,9 @@ phases["new-game-run"] = {
       H.equal("kill-clears-territory", s.stats.territories_cleared, 1)
       H.equal("kill-territory-count", #vulcanus().get_territories(), victim.territories - 1)
       H.equal("kill-no-pending", s.pending_checks, 0)
-      -- Retaking may already have started, so cleared + retaken must account for every chunk.
-      H.equal("kill-marks-chunks-cleared", s.cleared_chunk_count + s.stats.chunks_retaken, #victim.chunks)
-      H.equal("only-retaken-chunks-have-territory", chunks_with_territory(victim.chunks), s.stats.chunks_retaken)
+      -- Expansion may already have started, so cleared + taken must account for every chunk.
+      H.equal("kill-marks-chunks-cleared", s.cleared_chunk_count + s.stats.cleared_chunks_taken, #victim.chunks)
+      H.equal("only-taken-chunks-have-territory", chunks_with_territory(victim.chunks), s.stats.cleared_chunks_taken)
       victim.units = #vulcanus().get_segmented_units()
       generate(victim.ungenerated)
     end)
@@ -124,10 +124,10 @@ phases["new-game-run"] = {
     H.at(2300, function()
       local s = state()
       H.info("final-stats", s.stats)
-      H.equal("all-cleared-land-retaken", chunks_with_territory(victim.chunks), #victim.chunks)
+      H.equal("all-cleared-land-taken", chunks_with_territory(victim.chunks), #victim.chunks)
       H.equal("no-cleared-chunks-left", s.cleared_chunk_count, 0)
-      H.equal("chunks-retaken", s.stats.chunks_retaken, #victim.chunks)
-      H.equal("retaking-spawns-no-demolishers", #vulcanus().get_segmented_units(), victim.units)
+      H.equal("chunks-taken", s.stats.cleared_chunks_taken, #victim.chunks)
+      H.equal("expansion-spawns-no-demolishers", #vulcanus().get_segmented_units(), victim.units)
       H.equal("protected-safe-zone-stays-safe", safe_in_territory(), 0)
       H.check("safe-zone-blocked-expansion", s.stats.expansions_blocked_by_safe_zone > 0,
         s.stats.expansions_blocked_by_safe_zone .. " blocked attempts")
@@ -392,6 +392,9 @@ phases["nests-add"] = {
         H.equal("old-hatch-takes-one-parent-chunk", chunk_count(territory), before - 1)
         local _, units_after = units_by_number()
         H.equal("old-hatch-adds-one-demolisher", units_after, units_before + 1)
+        -- Headless doesn't chart without players, so nothing is in radar coverage: no alert. The
+        -- alert itself (expansion_base_built for forces that see the chunk) is checked in game.
+        H.equal("no-alert-outside-radar-coverage", state().stats.hatch_alerts, 0)
         H.equal("eggs-left-after-old-hatch", state().egg_count, 3)
         -- Free space: kill a neighbour, so cleared land borders the parent's territory. The border
         -- must be explored land: a hatchling's territory needs an explored chunk.
@@ -446,10 +449,10 @@ phases["nests-add"] = {
       elseif t.stage == "orphaned" and age >= 680 then
         H.check("parent-marked-dead", remote.call(MOD, "get_nests")[1].parent_dead)
         H.check("nest-chunk-cleared", remote.call(MOD, "is_cleared_chunk", t.nest_chunk.x, t.nest_chunk.y))
-        -- Neighbours retake the parent's land, except the nest chunk, which waits for the egg.
+        -- Neighbours expand into the parent's land, except the nest chunk, which waits for the egg.
         remote.call(MOD, "set_tuning", { expansion_enabled = false })
-        local retaken = run("expansion", 50)
-        H.check("parent-land-retaken", retaken > 0, retaken .. " chunks")
+        local taken = run("expansion", 50)
+        H.check("parent-land-taken", taken > 0, taken .. " chunks")
         H.check("nest-chunk-kept-for-egg", vulcanus().get_territory_for_chunk(t.nest_chunk) == nil)
         local _, units_before = units_by_number()
         H.equal("orphan-egg-hatches", run("hatch"), 1)
@@ -853,6 +856,116 @@ phases["ping-turret-filter-add"] = {
   end,
 }
 
+-- expansion-weighting: a hole at a territory's centre fills before a gap at its edge.
+local ew = { hole = 0, edge = 0 }
+phases["expansion-weighting-add"] = {
+  init = function()
+    local surface = vulcanus()
+    -- The territory with the most explored chunks.
+    local territory, count
+    for _, t in pairs(surface.get_territories()) do
+      local n = 0
+      for _, c in pairs(t.get_chunks()) do if surface.is_chunk_generated(c) then n = n + 1 end end
+      if not count or n > count then territory, count = t, n end
+    end
+    local chunks = territory.get_chunks()
+    local sx, sy, n = 0, 0, 0
+    for _, c in pairs(chunks) do sx, sy, n = sx + c.x, sy + c.y, n + 1 end
+    local cx, cy = sx / n, sy / n
+    local near, far, nd, fd
+    for _, c in pairs(chunks) do
+      if surface.is_chunk_generated(c) then
+        local d = math.sqrt((c.x - cx) ^ 2 + (c.y - cy) ^ 2)
+        -- The far chunk must stay next to the territory once removed: keep only edge chunks.
+        if not nd or d < nd then near, nd = c, d end
+        if not fd or d > fd then far, fd = c, d end
+      end
+    end
+    H.info("chunks", string.format("hole %.1f, edge %.1f chunks from the centre", nd, fd))
+    for _ = 1, 30 do
+      surface.set_territory_for_chunks({ near, far }, nil)
+      local taken
+      for _ = 1, 200 do
+        run("expansion")
+        local h, e = surface.get_territory_for_chunk(near) ~= nil, surface.get_territory_for_chunk(far) ~= nil
+        if h or e then taken = h and "hole" or "edge"; break end
+      end
+      if taken then ew[taken] = ew[taken] + 1 end
+      surface.set_territory_for_chunks({ near, far }, territory)
+    end
+    H.info("results", serpent.line(ew))
+    H.check("prefers-hole-near-centre", ew.hole >= 24, ew.hole .. " of 30")
+    H.done()
+  end,
+}
+
+-- wreck: territory growing over player buildings sends the demolisher to wreck them, including
+-- buildings that make no vibration.
+local wk = {}
+phases["wreck-add"] = {
+  tuning = {
+    expansion_enabled = false, growth_enabled = false, nest_enabled = false, hatch_enabled = false,
+    vibration_check_interval = 300,
+  },
+  init = function()
+    local surface = vulcanus()
+    -- A demolisher B whose explored land borders A's; kill B, build on its land next to A.
+    for _, b in pairs(surface.get_segmented_units()) do
+      if not wk.spot then
+        for _, c in pairs(b.territory.get_chunks()) do
+          if not wk.spot and surface.is_chunk_generated(c) then
+            for _, d in pairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+              local t = surface.get_territory_for_chunk({ c.x + d[1], c.y + d[2] })
+              if t and #t.get_segmented_units() > 0 and t.get_segmented_units()[1].unit_number ~= b.unit_number then
+                wk.spot, wk.victim, wk.owner = c, b, t.get_segmented_units()[1]
+                break
+              end
+            end
+          end
+        end
+      end
+    end
+    H.check("found-border", wk.spot ~= nil)
+    wk.victim.die()
+    local centre = { x = wk.spot.x * 32 + 16, y = wk.spot.y * 32 + 16 }
+    wk.buildings = {}
+    for _, name in ipairs({ "stone-wall", "stone-wall", "wooden-chest", "small-electric-pole", "solar-panel" }) do
+      local p = surface.find_non_colliding_position(name, centre, 12, 1)
+      wk.buildings[#wk.buildings + 1] = surface.create_entity({ name = name, position = p, force = "player" })
+    end
+    H.info("owner", wk.owner.prototype.name .. string.format(", head %.0f tiles away", coil_dist(wk.owner.get_body_nodes()[1], centre)))
+  end,
+  ticks = function()
+    local function poll()
+      if wk.finished then return end
+      local t = H.phase_tick()
+      local surface = vulcanus()
+      if not wk.taken then
+        for _ = 1, 400 do
+          if surface.get_territory_for_chunk(wk.spot) ~= nil then break end
+          run("expansion")
+        end
+        local territory = surface.get_territory_for_chunk(wk.spot)
+        H.check("chunk-taken", territory ~= nil)
+        wk.owner = territory.get_segmented_units()[1]
+        wk.taken = t
+        H.equal("queued-for-wrecking", state_stats().chunks_with_buildings_taken, 1)
+        return
+      end
+      local alive = 0
+      for _, e in pairs(wk.buildings) do if e.valid then alive = alive + 1 end end
+      if alive == 0 or t > 14000 then
+        wk.finished = true
+        H.equal("all-buildings-wrecked", alive, 0)
+        H.check("sent-by-mod", state_stats().wreck_dispatches >= 1, state_stats().wreck_dispatches .. " dispatches")
+        H.info("time", "wrecked by phase tick " .. t)
+        H.done()
+      end
+    end
+    for offset = 30, 14500, 30 do H.at(offset, poll) end
+  end,
+}
+
 ---------------------------------------------------------------------------------------------------
 -- killed: demolishers were killed before the mod was added.
 
@@ -887,18 +1000,18 @@ phases["killed-add"] = {
     H.at(3500, function()
       local s = state()
       H.info("stats", s.stats)
-      H.equal("all-cleared-land-retaken", chunks_with_territory(all), #all)
+      H.equal("all-cleared-land-taken", chunks_with_territory(all), #all)
       H.equal("no-cleared-chunks-left", s.cleared_chunk_count, 0)
       local still_ungenerated = 0
       for _, c in ipairs(ungenerated) do
         if not vulcanus().is_chunk_generated(c) then still_ungenerated = still_ungenerated + 1 end
       end
-      H.equal("ungenerated-chunks-retaken-unexplored", still_ungenerated, #ungenerated)
+      H.equal("ungenerated-chunks-taken-unexplored", still_ungenerated, #ungenerated)
       generate(ungenerated)
     end)
     H.at(3501, function()
       local record = setup_record()
-      H.equal("exploring-retaken-land-keeps-territory", chunks_with_territory(ungenerated), #ungenerated)
+      H.equal("exploring-taken-land-keeps-territory", chunks_with_territory(ungenerated), #ungenerated)
       H.equal("no-new-demolishers", #vulcanus().get_segmented_units(), record.unit_count)
       H.equal("no-new-territories", #vulcanus().get_territories(), record.territory_count - #record.killed)
       H.equal("no-dead-territories", dead_territories(), 0)

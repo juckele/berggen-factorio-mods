@@ -8,7 +8,7 @@ local defaults = {
   -- enemy expansion settings, lerp(max_cooldown, min_cooldown, -e^2 + 2e) with e the enemy
   -- evolution on Vulcanus, times the event's scale, divided by the pollution multiplier.
   -- On default map settings (10 to 60 minutes) a scale of 1/20 is 30 s to 3 min.
-  expansion_scale = 1 / 20, -- one cleared chunk retaken
+  expansion_scale = 1 / 20, -- one chunk of territory expansion
   growth_scale = 1 / 4,     -- one demolisher grows a size
   nest_scale = 1 / 2,       -- one max-size demolisher starts a nesting trip
   hatch_scale = 1 / 10,     -- one egg hatches
@@ -17,6 +17,11 @@ local defaults = {
   growth_enabled = true,
   nest_enabled = true,
   hatch_enabled = true,
+
+  -- Expansion prefers chunks near the gaining territory's centre (holes and concave edges first):
+  -- weight = exp(-expansion_centre_weight * distance / mean radius). At 3, a chunk at a tenth of
+  -- the radius is about 20 times as likely as one just past the edge.
+  expansion_centre_weight = 3,
 
   -- Growth. Sizes in order; the last is the max size, which can nest.
   tiers = { "small-demolisher", "medium-demolisher", "big-demolisher" },
@@ -49,6 +54,9 @@ local defaults = {
   vibration_check_interval = 5 * 60,
   vibration_investigate_threshold = 20,
   vibration_investigate_cooldown = 60 * 60,
+  -- When territory grows over player buildings, its demolisher is sent there on each check while
+  -- it's free, until they're gone, at most this many times per chunk.
+  wreck_max_visits = 5,
 
   -- Hatching: each hatch event picks one egg old enough to hatch, weighted by its situation.
   egg_min_age = 2 * 60 * 60,  -- no egg hatches younger than this

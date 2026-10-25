@@ -29,12 +29,22 @@ goes back to being player-facing text for the mod portal.
   its territories without demolishers. The mod is then inert: it doesn't clear those territories
   or run any events, and says in chat that it is effectively disabled. If no-enemies mode is
   turned off later, it clears the empty territories and starts its clocks (`no-enemies` test).
-- **Retaking cleared land.** Every expansion, one cleared chunk next to a territory with a living
+- **Expanding into cleared land.** Every expansion, one cleared chunk next to a territory with a living
   demolisher joins that territory, explored or not. This is the mod's main loop: land the player
-  clears doesn't stay clear. Retaken land never spawns extra demolishers.
+  clears doesn't stay clear. Land taken this way never spawns extra demolishers.
 - **Other expansion.** When no cleared chunk borders a living territory, a territory may instead
   grow into a neighbouring explored chunk without territory. In practice that's only the starting
   area, so it only happens with protection off.
+- **Holes fill first.** Every candidate chunk, from every territory, is weighted by
+  `exp(-3 · d / r)`: d is its distance from the gaining territory's centre, r that territory's
+  mean radius. Holes and concave edges fill long before a territory pushes outward
+  (`expansion-weighting` test: the hole won 30 of 30).
+- **Expanding over bases.** Territory can grow over player buildings. Vanilla demolishers don't
+  react to that (only to buildings placed in their territory, and they sleep with no player near),
+  so when a territory gains a chunk with player buildings, the mod sends its demolisher there on
+  each vibration check while it is free, until nothing of the player's is left (at most 5 trips per
+  chunk). This includes buildings that make no vibration (`wreck` test: walls, chest, pole and
+  solar panel destroyed after one trip).
 - **Growth.** Each growth event looks at a few random demolishers; one may grow a size (small →
   medium → big), with a sigmoid chance on its territory size (50% at 120 chunks for medium, 180
   for big). It can't grow more than one size above what the map generator places at its
@@ -52,12 +62,13 @@ goes back to being player-facing text for the mod portal.
 - **Eggs and hatching.** Each hatch event picks one egg at least 2 minutes old, weighted by its
   situation. The hatchling is a small demolisher with a one-chunk territory, which then grows like
   any other:
-  - parent dead (weight 10): it takes the nest chunk, which retaking leaves alone while the nest
+  - parent dead (weight 10): it takes the nest chunk, which expansion leaves alone while the nest
     has eggs;
   - cleared land next to the parent's explored land (weight 3): it takes the parent chunk
     bordering it, nearest the nest, with that chunk's patrol route, and finds its own way there;
   - otherwise, once 30 minutes old (weight 1): it takes the parent's edge chunk nearest the nest.
-  Each hatch shrinks the parent by one chunk, so repeated hatching eventually takes a parent under
+  A hatch inside a force's radar coverage raises the game's expansion alert (the one for new
+  biter bases) on the hatchling. Each hatch shrinks the parent by one chunk, so repeated hatching eventually takes a parent under
   the nesting minimum. Destroyed eggs are gone for good; the nest marker disappears with its last
   egg. Eggs show as red dots on the map; the nest marker doesn't show. Nest and egg graphics are
   placeholders (Vulcanus hot rocks); real art comes later.
@@ -91,7 +102,7 @@ Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-l
 
 - **Mods that remove demolishers.** A mod that removes a demolisher with
   `LuaSegmentedUnit.destroy()` without raising `script_raised_destroy_segmented_unit` leaves its
-  territory empty without this mod hearing about it. That territory isn't cleared or retaken until
+  territory empty without this mod hearing about it. That territory isn't cleared or expanded into until
   the next time the mod sets up (a mod change or game update), and any nest it had keeps waiting
   for its parent. This mod won't work around it; such mods should call `destroy{raise_destroy = true}`
   or kill the unit with `die()`.
@@ -102,8 +113,8 @@ Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-l
 - [x] New game, Vulcanus created later (`new-game` test).
 - [x] Added to a save that has been to Vulcanus and built there (`established` test).
 - [x] Added to a save where demolishers were killed (`killed` test): their land is marked cleared
-      and retaken.
-- [ ] Saves that ran the first 0.2.0 build: land it cleared wasn't marked, so it is never retaken.
+      and expanded into.
+- [ ] Saves that ran the first 0.2.0 build: land it cleared wasn't marked, so it is never expanded into.
       Only matters for testers' saves; could be fixed by marking territory-free explored chunks
       outside the safe zone as cleared.
 - [x] Vulcanus created by another mod's `on_init`, which doesn't raise `on_surface_created` for us:
@@ -156,11 +167,14 @@ Open:
       territories, budding, fragments surviving a sloppy kill, spawning from volcanoes.
 
 ### 4. Territory expansion as a real threat
-- [x] Living territories retake cleared land, explored or not.
-- [ ] Decide whether retaking is the whole threat or whether territory should also push into land
-      with player buildings outside the starting area.
-- [ ] Retaking should prefer chunks toward the player (buildings, pollution) over random cleared edges.
-- [ ] Warn the player: an alert or map marker when territory grows into a chunk with their buildings.
+- [x] Living territories expand into cleared land, explored or not.
+- [x] Territory can grow into bases; the demolisher is sent to wreck what it covers (`wreck` test).
+- [x] Expansion prefers chunks near the territory's centre: holes and curves fill first
+      (`expansion-weighting` test).
+- Decided: no alerts for territory growing or demolishers moving. Hatches in radar coverage use
+  the game's expansion alert.
+- [ ] Check the hatch alert in game (headless can't chart without players, so the test only checks
+      that a hatch outside radar coverage raises none).
 
 ### 5. The original safe zone stays safe
 - [x] Recorded on setup even with protection off; protection on by default; turning it on doesn't
@@ -168,7 +182,7 @@ Open:
 - [ ] Show the safe zone on the map (optional overlay or chart tags).
 - [ ] Test other seeds and starting-area slider values (the disc moves with the slider).
 - [x] The player can't extend the safe zone: it is only the original starting area. Land they
-      clear and build on stays open to retaking.
+      clear and build on stays open to expansion.
 
 ### 6. Ping turret: automated demolisher handling
 Decided: it lures demolishers by hurting them a little, so they come for the turret and into the

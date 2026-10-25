@@ -5,11 +5,13 @@ Version: 0.2.0
     - Killing the last demolisher of a territory turns its land into cleared land, and adding the mod to a save
       does the same for territories whose demolishers were already killed. Exploring cleared land doesn't spawn
       new demolishers.
-    - Territories with a living demolisher retake neighbouring cleared land, one chunk at a time, explored or not.
+    - Territories with a living demolisher expand into neighbouring cleared land, one chunk at a time, explored or not,
+      filling holes and curves near their centre first. When they grow over player buildings, the demolisher comes
+      to wreck them.
     - Demolisher territory no longer expands into the starting area (setting, on by default). The starting area
       is recorded even with the setting off.
     - Expansion is global per surface and follows the map's enemy expansion settings: the cooldown uses the
-      same evolution scaling as biter expansion (scaled to 1/20, since each expansion retakes one chunk), and
+      same evolution scaling as biter expansion (scaled to 1/20, since each expansion expands into one chunk), and
       turning enemy expansion off stops it. A tick override setting (10 for now, so testers can watch it)
       replaces the map cooldown when above 0.
     - Removed debug chat messages; debug logging is a setting.
@@ -24,6 +26,7 @@ Version: 0.2.0
     - Ping turret (after metallurgic science): very long range, very slow, and barely damaging; it lures
       demolishers to your defences. To ping only some sizes, add those demolishers to its priority targets and
       ignore other targets. Uses cheap ping shells.
+    - Eggs hatching within radar coverage raise the game's expansion alert.
     - In no-enemies mode the mod does nothing and says so in chat, instead of removing every (empty) territory.
     - New Vulcanus pollution layer, vibration: mining drills, pumps and offshore pumps make it, lava absorbs it
       quickly and volcanic rock steadily. It raises evolution on Vulcanus, and a demolisher investigates the loudest

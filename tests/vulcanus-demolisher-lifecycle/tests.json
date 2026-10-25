@@ -8,7 +8,7 @@
   "scenarios": [
     {
       "name": "new-game",
-      "description": "Mod present from a fixed-seed new game; Vulcanus created mid-game; a demolisher killed; its cleared land is retaken by neighbours while the starting area stays protected.",
+      "description": "Mod present from a fixed-seed new game; Vulcanus created mid-game; a demolisher killed; neighbouring territories expand into its cleared land while the starting area stays protected.",
       "settings": { "demolisher-lifecycle-expansion-interval-ticks": 5 },
       "steps": [
         {
@@ -273,8 +273,48 @@
       ]
     },
     {
+      "name": "expansion-weighting",
+      "description": "With a hole at a territory's centre and a gap at its edge, expansion fills the hole first in most of 30 trials.",
+      "steps": [
+        {
+          "phase": "established-setup",
+          "fixture": "established-start",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 12, "build": true },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        {
+          "phase": "expansion-weighting-add",
+          "benchmark": 5,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    },
+    {
+      "name": "wreck",
+      "description": "Territory expanding into land with player buildings (walls, chest, pole, solar panel: no vibration) sends its demolisher until they are all destroyed.",
+      "steps": [
+        {
+          "phase": "established-setup",
+          "fixture": "established-start",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 12, "build": true },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        {
+          "phase": "wreck-add",
+          "benchmark": 14600,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    },
+    {
       "name": "killed",
-      "description": "Demolishers killed before the mod is added: their territories are removed and marked cleared, living neighbours retake the land (explored or not) at the default rate, and exploring it spawns nothing.",
+      "description": "Demolishers killed before the mod is added: their territories are removed and marked cleared, living neighbours expand into the land (explored or not) at the default rate, and exploring it spawns nothing.",
       "steps": [
         {
           "phase": "killed-setup",
