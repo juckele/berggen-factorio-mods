@@ -1,5 +1,8 @@
 # tools
 
+- [`upload_mod.py`](#upload_modpy): package and upload a mod to the mod portal.
+- [`headless/`](headless/README.md): run mod test scenarios on headless Factorio; tests live in `tests/<mod>/`.
+
 ## upload_mod.py
 
 Packages a mod from `mods/` and uploads it to the Factorio mod portal as a new release.

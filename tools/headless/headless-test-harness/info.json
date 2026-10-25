@@ -1,0 +1,9 @@
+{
+  "name": "headless-test-harness",
+  "version": "1.0.0",
+  "title": "Headless test harness",
+  "author": "berggen",
+  "factorio_version": "2.1",
+  "dependencies": ["base", "headless-test-config"],
+  "description": "Test-only library for tools/headless. Never published."
+}

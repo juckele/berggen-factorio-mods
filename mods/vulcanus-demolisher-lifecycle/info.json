@@ -1,12 +1,12 @@
 {
   "name": "vulcanus-demolisher-lifecycle",
-  "version": "0.1",
+  "version": "0.2.0",
   "title": "Vulcanus Demolisher Lifecycle",
   "author": "berggen",
-  "factorio_version": "2.0.61",
+  "factorio_version": "2.1",
   "dependencies": [
-      "base",
-      "space-age"
+    "base >= 2.1.0",
+    "space-age >= 2.1.0"
   ],
   "segmented_units_required": true,
   "space_travel_required": true,

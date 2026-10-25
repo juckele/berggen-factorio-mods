@@ -1,0 +1,9 @@
+{
+  "name": "demolisher-lifecycle-test-setup",
+  "version": "1.0.0",
+  "title": "Demolisher lifecycle test setup",
+  "author": "berggen",
+  "factorio_version": "2.1",
+  "dependencies": ["space-age", "headless-test-harness"],
+  "description": "Test-only. Builds Vulcanus save state without Vulcanus Demolisher Lifecycle installed."
+}

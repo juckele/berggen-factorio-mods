@@ -1,0 +1,111 @@
+{
+  "factorio": "2.1",
+  "mod_paths": {
+    "vulcanus-demolisher-lifecycle": "../../mods/vulcanus-demolisher-lifecycle",
+    "demolisher-lifecycle-test-setup": "mods/demolisher-lifecycle-test-setup",
+    "demolisher-lifecycle-test-checks": "mods/demolisher-lifecycle-test-checks"
+  },
+  "scenarios": [
+    {
+      "name": "new-game",
+      "description": "Mod present from a fixed-seed new game; Vulcanus created mid-game; a demolisher killed; territory expands with the starting area protected.",
+      "settings": { "demolisher-lifecycle-expansion-interval": 1 },
+      "steps": [
+        {
+          "phase": "new-game-create",
+          "create": { "seed": 12345 },
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        },
+        {
+          "phase": "new-game-run",
+          "benchmark": 2400,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    },
+    {
+      "name": "unprotected",
+      "description": "Starting-area protection off: territory grows into the starting area. Turning protection on later stops further growth without evicting.",
+      "settings": {
+        "demolisher-lifecycle-expansion-interval": 1,
+        "demolisher-lifecycle-protect-starting-area": false
+      },
+      "steps": [
+        {
+          "phase": "unprotected-create",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 12 },
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        },
+        {
+          "phase": "unprotected-run",
+          "benchmark": 1600,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        },
+        {
+          "phase": "toggle-protection",
+          "server": {
+            "actions": [
+              { "wait": 600 },
+              {
+                "lua": "settings.global['demolisher-lifecycle-protect-starting-area'] = {value = true}",
+                "context": "vulcanus-demolisher-lifecycle"
+              },
+              {
+                "name": "protection-enabled",
+                "lua": "rcon.print(settings.global['demolisher-lifecycle-protect-starting-area'].value)",
+                "expect": "^true"
+              },
+              { "wait": 660 }
+            ]
+          },
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    },
+    {
+      "name": "established",
+      "description": "Vulcanus visited and built on before the mod is added.",
+      "settings": { "demolisher-lifecycle-expansion-interval": 1 },
+      "steps": [
+        {
+          "phase": "established-setup",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 12, "build": true },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        {
+          "phase": "established-add",
+          "benchmark": 600,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    },
+    {
+      "name": "killed",
+      "description": "Demolishers killed before the mod is added; their territories are removed and don't come back when explored.",
+      "steps": [
+        {
+          "phase": "killed-setup",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 12, "kill": 3 },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        {
+          "phase": "killed-add",
+          "benchmark": 60,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "demolisher-lifecycle-test-checks",
+  "version": "1.0.0",
+  "title": "Demolisher lifecycle test checks",
+  "author": "berggen",
+  "factorio_version": "2.1",
+  "dependencies": ["vulcanus-demolisher-lifecycle", "headless-test-harness", "? demolisher-lifecycle-test-setup"],
+  "description": "Test-only. Asserts Vulcanus Demolisher Lifecycle's state through its remote interface."
+}
