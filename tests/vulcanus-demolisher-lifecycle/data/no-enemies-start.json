@@ -1,0 +1,9 @@
+{
+  "key": "5e646c488c8d76199e8d88f0d9e872ae40c98cf990bf5b32e42a220eee83cd6b",
+  "factorio": "2.1.23",
+  "output": [
+    "TEST INFO setup-territories :: 15",
+    "TEST INFO setup-demolishers :: 0",
+    "TEST DONE no-enemies-setup"
+  ]
+}

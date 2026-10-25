@@ -213,6 +213,26 @@
       ]
     },
     {
+      "name": "no-enemies",
+      "description": "New game in no-enemies mode, Vulcanus generated, then the mod added: it warns, leaves the empty territories alone and runs no events; turning no-enemies mode off starts it up.",
+      "steps": [
+        {
+          "phase": "no-enemies-setup",
+          "fixture": "no-enemies-start",
+          "create": { "seed": 12345, "map_gen_settings": "data/no-enemies-map-gen-settings.json" },
+          "params": { "vulcanus_radius": 12 },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        {
+          "phase": "no-enemies-add",
+          "benchmark": 800,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    },
+    {
       "name": "killed",
       "description": "Demolishers killed before the mod is added: their territories are removed and marked cleared, living neighbours retake the land (explored or not) at the default rate, and exploring it spawns nothing.",
       "steps": [

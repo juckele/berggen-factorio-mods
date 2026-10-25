@@ -17,6 +17,7 @@ Takes about 2 minutes on Factorio 2.1. Runner docs: [`tools/headless`](../../too
 | `nest-interrupt` | Damaging a demolisher while it coils ends the trip without a nest, and it doesn't retry straight away. |
 | `vibration` | Vulcanus tracks vibration (Nauvis still tracks pollution); every drill and pump type emits it and an assembler doesn't; a fuelled burner drill shows up in the vibration statistics; pollution put into an all-lava chunk falls faster than in an all-rock chunk. |
 | `vibration-investigate` | Vibration over the threshold in a territory chunk sends its demolisher to investigate; a quiet chunk doesn't; no repeat while investigating or within the cooldown, but again after it; the demolisher reaches the spot and destroys a player wall there. |
+| `no-enemies` | New game in no-enemies mode (Vulcanus inherits it: 15 territories, no demolishers), then the mod added: it warns, leaves the territories alone and runs no events; turning no-enemies mode off clears the empty territories and starts the clocks. |
 | `killed` | Save where 3 demolishers were killed before the mod was added. Also checks the vanilla behaviour the mod builds on (a territory stays after its last demolisher dies). On add, the dead territories are removed and marked cleared; at the default rate, neighbours retake all of it, including unexplored chunks, and exploring those afterwards spawns nothing new. |
 
 ## Layout
@@ -29,6 +30,8 @@ Takes about 2 minutes on Factorio 2.1. Runner docs: [`tools/headless`](../../too
   state through its remote interface `vulcanus-demolisher-lifecycle`. Every phase turns growth,
   nesting and hatching off unless it sets its own `tuning`, so older checks aren't disturbed.
 
+- `data/no-enemies-start.zip`: fixture save for `no-enemies`, from `data/no-enemies-map-gen-settings.json`
+  (the game's example map-gen settings with `no_enemies_mode` on).
 - `data/established-start.zip`, `data/killed-start.zip`: fixture saves from the setup steps of
   `established` (also used by `unprotected`, `map-settings` and the nest and vibration scenarios) and `killed` (Vulcanus generated, base built or demolishers killed, mod not installed), to
   skip ~14 s of generation each. They depend only on Factorio, the setup mod and the harness, and

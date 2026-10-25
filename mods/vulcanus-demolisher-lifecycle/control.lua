@@ -162,13 +162,31 @@ local function schedule_all(surface)
 end
 
 -- The mod needs enemy expansion. Say so once each time it is found turned off.
-local function check_expansion_setting()
-  if not tracked_surface() then return end
+-- No-enemies mode on Vulcanus (inherited from the new-game settings) leaves every territory
+-- without a demolisher, so the mod stays inert there instead of clearing them all.
+local function inert(surface)
+  return surface.no_enemies_mode
+end
+
+-- The mod needs enemy expansion and enemies. Say so once each time either is found missing.
+-- Defined before the lifecycle code, which provides on_resume.
+local function check_settings(on_resume)
+  local surface = tracked_surface()
+  if not surface then return end
   if game.map_settings.enemy_expansion.enabled then
     storage.warned_expansion_disabled = nil
   elseif not storage.warned_expansion_disabled then
     storage.warned_expansion_disabled = true
     game.print({ "vulcanus-demolisher-lifecycle.enemy-expansion-disabled" })
+  end
+  if inert(surface) then
+    if not storage.warned_no_enemies then
+      storage.warned_no_enemies = true
+      game.print({ "vulcanus-demolisher-lifecycle.no-enemies" })
+    end
+  elseif storage.warned_no_enemies then
+    storage.warned_no_enemies = nil
+    if on_resume then on_resume(surface) end
   end
 end
 
@@ -934,7 +952,7 @@ end
 local function initialize_vulcanus(surface)
   local v = storage.vulcanus
   if v and v.surface_index == surface.index then
-    clear_dead_territories(surface)
+    if not inert(surface) then clear_dead_territories(surface) end
     return
   end
   local safe, count, candidates = record_safe_zone(surface)
@@ -951,8 +969,14 @@ local function initialize_vulcanus(surface)
   for _, event in ipairs(EVENTS) do storage.last_event[event] = game.tick end
   schedule_all(surface)
   debug_log("Initialized on " .. surface.name .. " with " .. count .. " safe chunks")
+  if not inert(surface) then clear_dead_territories(surface) end
+  check_settings()
+end
+
+-- No-enemies mode was turned off: catch up on territories that died meanwhile, restart the clocks.
+local function resume(surface)
   clear_dead_territories(surface)
-  check_expansion_setting()
+  schedule_all(surface)
 end
 
 local function check_vulcanus()
@@ -979,7 +1003,7 @@ script.on_configuration_changed(function()
       end
     end
   end
-  check_expansion_setting()
+  check_settings(resume)
 end)
 
 script.on_event(defines.events.on_surface_created, function(event)
@@ -1020,8 +1044,9 @@ script.on_event(defines.events.on_segmented_unit_damaged, function(event)
 end)
 
 script.on_event(defines.events.on_tick, function(event)
-  if next(storage.pending) then process_pending() end
   local surface = tracked_surface()
+  if surface and inert(surface) then return end
+  if next(storage.pending) then process_pending() end
   if not surface then return end
   if next(storage.trips) then update_trips(surface) end
   if event.tick % T("vibration_check_interval") == 0 then run_event(surface, "vibration") end
@@ -1046,7 +1071,7 @@ script.on_nth_tick(60, function()
   -- Catches a Vulcanus created where on_surface_created doesn't reach this mod, such as another
   -- mod's on_init.
   if not tracked_surface() and game.surfaces[SURFACE_NAME] then check_vulcanus() end
-  check_expansion_setting()
+  check_settings(resume)
 end)
 
 ---------------------------------------------------------------------------------------------------
@@ -1090,6 +1115,8 @@ remote.add_interface("vulcanus-demolisher-lifecycle", {
       nest_count = table_size(storage.nests or {}),
       egg_count = eggs,
       warned_expansion_disabled = storage.warned_expansion_disabled == true,
+      no_enemies = surface ~= nil and inert(surface),
+      warned_no_enemies = storage.warned_no_enemies == true,
       stats = copy(storage.stats or new_stats()),
     }
   end,

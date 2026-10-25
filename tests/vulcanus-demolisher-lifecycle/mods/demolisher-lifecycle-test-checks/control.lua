@@ -704,6 +704,39 @@ phases["vibration-investigate-add"] = {
   end,
 }
 
+-- no-enemies: a new game in no-enemies mode. Vulcanus has territories but no demolishers; the mod
+-- warns, stays inert, and starts working when no-enemies mode is turned off.
+phases["no-enemies-add"] = {
+  tuning = {},
+  init = function()
+    local record, s = setup_record(), state()
+    H.check("vulcanus-in-no-enemies-mode", vulcanus().no_enemies_mode)
+    H.equal("no-demolishers", #vulcanus().get_segmented_units(), 0)
+    H.check("has-territories", record.territory_count > 0, record.territory_count .. " territories")
+    H.check("warned", s.warned_no_enemies)
+    H.check("reports-inert", s.no_enemies)
+    H.equal("territories-left-alone", #vulcanus().get_territories(), record.territory_count)
+    H.equal("nothing-cleared", s.cleared_chunk_count, 0)
+  end,
+  ticks = function()
+    H.at(600, function()
+      local s = state()
+      H.equal("no-events-while-inert", s.stats.expansion_attempts + s.stats.growth_attempts + s.stats.nest_attempts
+        + s.stats.hatch_attempts + s.stats.vibration_attempts, 0)
+      H.equal("territories-still-there", #vulcanus().get_territories(), setup_record().territory_count)
+      vulcanus().no_enemies_mode = false
+    end)
+    H.at(700, function()
+      local s = state()
+      H.check("warning-cleared", not s.warned_no_enemies)
+      H.check("no-longer-inert", not s.no_enemies)
+      H.equal("empty-territories-cleared-on-resume", #vulcanus().get_territories(), 0)
+      H.check("clocks-running", s.stats.expansion_attempts > 0)
+      H.done()
+    end)
+  end,
+}
+
 ---------------------------------------------------------------------------------------------------
 -- killed: demolishers were killed before the mod was added.
 

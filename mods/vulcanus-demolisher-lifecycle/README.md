@@ -25,6 +25,10 @@ goes back to being player-facing text for the mod portal.
   Expansion at 1/20 is 3 min at no evolution to 30 s at full evolution on default map settings.
 - **Enemy expansion required.** The mod does nothing with enemy expansion turned off in the map
   settings, and says so in chat once each time it finds it off.
+- **No-enemies mode.** Vulcanus inherits no-enemies mode from the new-game settings, which leaves
+  its territories without demolishers. The mod is then inert: it doesn't clear those territories
+  or run any events, and says in chat that it is effectively disabled. If no-enemies mode is
+  turned off later, it clears the empty territories and starts its clocks (`no-enemies` test).
 - **Retaking cleared land.** Every expansion, one cleared chunk next to a territory with a living
   demolisher joins that territory, explored or not. This is the mod's main loop: land the player
   clears doesn't stay clear. Retaken land never spawns extra demolishers.
@@ -80,6 +84,15 @@ goes back to being player-facing text for the mod portal.
 
 Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-lifecycle).
 
+## Compatibility
+
+- **Mods that remove demolishers.** A mod that removes a demolisher with
+  `LuaSegmentedUnit.destroy()` without raising `script_raised_destroy_segmented_unit` leaves its
+  territory empty without this mod hearing about it. That territory isn't cleared or retaken until
+  the next time the mod sets up (a mod change or game update), and any nest it had keeps waiting
+  for its parent. This mod won't work around it; such mods should call `destroy{raise_destroy = true}`
+  or kill the unit with `die()`.
+
 ## Remaining work
 
 ### 1. Setup on new and established games
@@ -93,13 +106,12 @@ Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-l
 - [x] Vulcanus created by another mod's `on_init`, which doesn't raise `on_surface_created` for us:
       a once-a-second check picks it up. Not covered by a test yet (in the tests, the setup mod's
       `on_init` runs first).
-- [ ] No-enemies mode: every territory is empty, so setup currently removes them all. Decide whether
-      the mod should do anything at all with no enemies.
+- [x] No-enemies mode: inert with a chat warning, picks up if turned off (`no-enemies` test).
 - [ ] Test against a hand-played save (late game on Vulcanus, many kills, odd starting-area slider).
 - [x] Killing a demolisher whose territory is entirely unexplored clears it (found by the `nests`
       test; dead territories were looked up by an explored chunk before).
-- [ ] Decide what to do when other mods destroy demolishers with `destroy()` without raising
-      `script_raised_destroy_segmented_unit`: only the setup sweep catches those today.
+- [x] Other mods destroying demolishers without raising `script_raised_destroy_segmented_unit`:
+      not handled, by decision; noted under Compatibility.
 - [ ] Multiplayer check (a server run with two clients) before release.
 
 ### 2. Game balance
@@ -154,7 +166,8 @@ Open:
       evict (`unprotected` test).
 - [ ] Show the safe zone on the map (optional overlay or chart tags).
 - [ ] Test other seeds and starting-area slider values (the disc moves with the slider).
-- [ ] Decide whether the player can extend the safe zone (e.g. land they cleared and built on).
+- [x] The player can't extend the safe zone: it is only the original starting area. Land they
+      clear and build on stays open to retaking.
 
 ### 6. Ping rifle: automated demolisher handling
 - [ ] Design: does the ping kill demolishers, lure them, or drive them out of an area? Is it a
