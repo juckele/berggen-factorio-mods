@@ -21,7 +21,7 @@ goes back to being player-facing text for the mod portal.
   surface. With the override at 0, each cooldown uses vanilla's biter formula on the map's enemy
   expansion settings, `lerp(max_cooldown, min_cooldown, -e² + 2e)` with `e` the enemy evolution on
   Vulcanus, times a per-event scale (expansion 1/20, growth 1/4, nest 1/2, hatch 1/10; see
-  `tuning.lua`), divided by a pollution multiplier (always 1 until pollution is designed).
+  `tuning.lua`). Evolution rises with time and vibration, which is the global pollution effect.
   Expansion at 1/20 is 3 min at no evolution to 30 s at full evolution on default map settings.
 - **Enemy expansion required.** The mod does nothing with enemy expansion turned off in the map
   settings, and says so in chat once each time it finds it off.
@@ -51,17 +51,22 @@ goes back to being player-facing text for the mod portal.
   - parent dead (weight 10): it takes the nest chunk, which retaking leaves alone while the nest
     has eggs;
   - cleared land next to the parent's explored land (weight 3): it takes the parent chunk
-    bordering it, nearest the nest, and walks there;
+    bordering it, nearest the nest, with that chunk's patrol route, and finds its own way there;
   - otherwise, once 30 minutes old (weight 1): it takes the parent's edge chunk nearest the nest.
   Each hatch shrinks the parent by one chunk, so repeated hatching eventually takes a parent under
   the nesting minimum. Destroyed eggs are gone for good; the nest marker disappears with its last
-  egg. Nest and egg graphics are placeholders (Vulcanus hot rocks).
-- **Tremors.** Vulcanus gets its own pollution layer, *tremors* (vanilla Vulcanus has no pollutant).
+  egg. Eggs show as red dots on the map; the nest marker doesn't show. Nest and egg graphics are
+  placeholders (Vulcanus hot rocks); real art comes later.
+- **Vibration.** Vulcanus gets its own pollution layer, *vibration* (vanilla Vulcanus has no pollutant).
   Mining drills, pumps and offshore pumps emit it while working (burner drill 6/min, electric drill
   10, big drill 40, pump 3, offshore pump 8; other mods' drills and pumps fall back by type). Lava
   absorbs it fastest (0.0001 per tile per second, the top vanilla rate) and volcanic ground
-  medium-high (0.00002; grass absorbs pollution at 0.000018). Tremors count toward evolution, which
-  shortens every demolisher event clock. They don't affect demolishers in any other way yet.
+  medium-high (0.00002; grass absorbs pollution at 0.000018). Vibration counts toward evolution,
+  which shortens every demolisher event clock. Efficiency modules reduce it like any pollution.
+- **Vibration draws investigation.** Every 5 s the mod finds each territory's loudest explored
+  chunk. At 20 vibration or more, the territory's demolisher investigates it, unless it is
+  fighting, already investigating, nesting, or was sent in the last minute. On arrival the vanilla
+  AI attacks player buildings it finds there (`vibration-investigate` test).
 - **Settings** (all map settings):
   - *Demolishers cannot expand into the starting area* (on). Turning it on later stops further
     growth without evicting territory that already grew there.
@@ -158,18 +163,18 @@ Open:
       buildings), ideally settable by circuit network.
 - [ ] Item, recipe, technology, graphics, and balance against the vanilla ways of killing demolishers.
 
-### 7. Pollution (tremors)
-- [x] Tremors pollution layer on Vulcanus: drills and pumps emit, lava absorbs most, rock
-      medium-high; affects evolution (`tremors` test).
-- [ ] Every event clock divides its cooldown by `pollution_multiplier(surface)` in control.lua,
-      which returns 1. Decide what it measures.
-- [ ] Decide how demolishers interact with tremors (brainstormed 2026-10-25): tremors draw
-      investigation, speed up events locally or globally, steer retaking toward the source, wake
-      sleeping demolishers, are absorbed by territories (spawner-like), and so on.
-- [ ] Should anything besides drills and pumps make tremors (trains, foundries, rocket launches,
-      big machines)? Should quiet alternatives exist (a technology or module that reduces them)?
-- [ ] Make the effect visible to the player (statistics, tooltip, or map overlay).
-- [ ] Balance with 2 (rate) and 4 (direction).
+### 7. Pollution (vibration)
+- [x] Vibration pollution layer on Vulcanus: drills and pumps emit, lava absorbs most, rock
+      medium-high; affects evolution (`vibration` test).
+- [x] Global effect: through evolution only (time and vibration).
+- [x] Local effect: loud vibration in a territory chunk draws its demolisher to investigate
+      (`vibration-investigate` test).
+- [ ] Tune the threshold (20), check interval (5 s) and per-demolisher cooldown (1 min) against a
+      real base; check what a typical mining outpost's chunk reaches.
+- [ ] Performance: each check walks every explored chunk once. Spread it over ticks if that shows
+      up on a large map.
+- Decided: nests stay at the territory centre regardless of vibration; efficiency modules are the
+  player's way to make less.
 
 ### 8. Release
 - [ ] Player-facing README and mod portal description, thumbnail, dated changelog.

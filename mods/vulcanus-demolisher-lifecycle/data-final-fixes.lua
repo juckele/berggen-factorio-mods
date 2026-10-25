@@ -1,4 +1,4 @@
--- Tremors emissions and absorption. Placeholders until the balance pass.
+-- Vibration emissions and absorption. Placeholders until the balance pass.
 
 -- Emissions per minute while working. Mining drills shake the ground most; pumps a little.
 -- Prototypes not listed (including other mods') fall back by type.
@@ -20,8 +20,8 @@ for type_name, fallback in pairs(FALLBACK) do
     local source = prototype.energy_source
     if source then
       source.emissions_per_minute = source.emissions_per_minute or {}
-      if source.emissions_per_minute.tremors == nil then
-        source.emissions_per_minute.tremors = EMISSIONS[name] or fallback
+      if source.emissions_per_minute.vibration == nil then
+        source.emissions_per_minute.vibration = EMISSIONS[name] or fallback
       end
     end
   end
@@ -42,6 +42,6 @@ for name, tile in pairs(data.raw.tile) do
   if rate then
     -- Copy first: Space Age's Vulcanus tiles all share one absorption table.
     tile.absorptions_per_second = table.deepcopy(tile.absorptions_per_second or {})
-    tile.absorptions_per_second.tremors = rate
+    tile.absorptions_per_second.vibration = rate
   end
 end

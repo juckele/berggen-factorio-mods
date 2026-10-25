@@ -173,8 +173,8 @@
       ]
     },
     {
-      "name": "tremors",
-      "description": "Vulcanus's pollution layer: Vulcanus tracks tremors (Nauvis still pollution), drills and pumps emit it, a working drill shows up in the tremor statistics, and lava absorbs it faster than rock.",
+      "name": "vibration",
+      "description": "Vulcanus's pollution layer: Vulcanus tracks vibration (Nauvis still pollution), drills and pumps emit it, a working drill shows up in the vibration statistics, and lava absorbs it faster than rock.",
       "steps": [
         {
           "phase": "established-setup",
@@ -185,8 +185,28 @@
           "expect_done": true
         },
         {
-          "phase": "tremors-add",
+          "phase": "vibration-add",
           "benchmark": 1900,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    },
+    {
+      "name": "vibration-investigate",
+      "description": "Vibration over the threshold in a territory chunk sends that territory's demolisher to investigate it; quiet chunks don't; it isn't re-sent while investigating or during its cooldown.",
+      "steps": [
+        {
+          "phase": "established-setup",
+          "fixture": "established-start",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 12, "build": true },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        {
+          "phase": "vibration-investigate-add",
+          "benchmark": 8100,
           "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
           "expect_done": true
         }

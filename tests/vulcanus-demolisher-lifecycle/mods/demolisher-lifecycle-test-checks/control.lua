@@ -9,6 +9,7 @@ local SETUP = "demolisher-lifecycle-test-setup"
 local PROTECT = "demolisher-lifecycle-protect-starting-area"
 
 local function state() return remote.call(MOD, "get_state") end
+local function state_stats() return remote.call(MOD, "get_state").stats end
 local function vulcanus() return game.surfaces["vulcanus"] end
 local function setup_record()
   if remote.interfaces[SETUP] then return remote.call(SETUP, "get_record") end
@@ -368,6 +369,10 @@ phases["nests-add"] = {
         H.check("eggs-at-nest", furthest <= 5, "furthest egg " .. string.format("%.1f", furthest) .. " tiles from the nest")
         H.equal("nest-marker-placed", vulcanus().count_entities_filtered({ name = "demolisher-nest" }), 1)
         H.equal("egg-entities", vulcanus().count_entities_filtered({ name = "demolisher-egg" }), 4)
+        local egg_proto, nest_proto = prototypes.entity["demolisher-egg"], prototypes.entity["demolisher-nest"]
+        local red = egg_proto.map_color and egg_proto.map_color.r > 0 and egg_proto.map_color.g == 0 and egg_proto.map_color.b == 0
+        H.check("eggs-red-on-map", red and not (egg_proto.flags and egg_proto.flags["not-on-map"]), serpent.line(egg_proto.map_color))
+        H.check("nest-marker-not-on-map", nest_proto.flags and nest_proto.flags["not-on-map"] or false)
         H.equal("nest-chunk-reserved", state().reserved_chunk_count, 1)
         H.check("parent-back-on-patrol", t.parent.get_ai_state().type == defines.segmented_unit_ai_state.patrolling)
         H.equal("too-young-to-hatch", run("hatch"), 0)
@@ -546,14 +551,14 @@ phases["nest-interrupt-add"] = {
 }
 
 ---------------------------------------------------------------------------------------------------
--- tremors: Vulcanus's pollution layer. Prototypes, a working drill emitting it, and lava absorbing
+-- vibration: Vulcanus's pollution layer. Prototypes, a working drill emitting it, and lava absorbing
 -- it faster than rock.
 
-local function emits_tremors(name)
+local function emits_vibration(name)
   local p = prototypes.entity[name]
   local sources = { p.electric_energy_source_prototype, p.burner_prototype, p.void_energy_source_prototype }
   for _, source in pairs(sources) do
-    if source and source.emissions_per_joule and (source.emissions_per_joule.tremors or 0) > 0 then return true end
+    if source and source.emissions_per_joule and (source.emissions_per_joule.vibration or 0) > 0 then return true end
   end
   return false
 end
@@ -573,19 +578,19 @@ local function find_chunk(surface, want_lava)
   end
 end
 
-local tremor_test = {}
+local vibration_test = {}
 
-phases["tremors-add"] = {
+phases["vibration-add"] = {
   init = function()
     local surface = vulcanus()
-    H.equal("vulcanus-pollutant", surface.pollutant_type and surface.pollutant_type.name, "tremors")
+    H.equal("vulcanus-pollutant", surface.pollutant_type and surface.pollutant_type.name, "vibration")
     H.check("nauvis-unchanged", game.surfaces.nauvis.pollutant_type.name == "pollution")
     for _, name in pairs({ "burner-mining-drill", "electric-mining-drill", "big-mining-drill", "pump", "offshore-pump" }) do
-      H.check("emits-" .. name, emits_tremors(name))
+      H.check("emits-" .. name, emits_vibration(name))
     end
-    H.check("assembler-does-not-emit", not emits_tremors("assembling-machine-2"))
-    local lava = prototypes.tile["lava"].absorptions_per_second.tremors or 0
-    local rock = prototypes.tile["volcanic-ash-flats"].absorptions_per_second.tremors or 0
+    H.check("assembler-does-not-emit", not emits_vibration("assembling-machine-2"))
+    local lava = prototypes.tile["lava"].absorptions_per_second.vibration or 0
+    local rock = prototypes.tile["volcanic-ash-flats"].absorptions_per_second.vibration or 0
     H.check("lava-absorbs-most", lava > rock and rock > 0, "lava " .. lava .. ", rock " .. rock)
 
     -- A burner drill on a resource, fuelled.
@@ -595,40 +600,107 @@ phases["tremors-add"] = {
       if surface.can_place_entity({ name = "burner-mining-drill", position = p, force = "player" }) then
         local drill = surface.create_entity({ name = "burner-mining-drill", position = p, force = "player" })
         drill.insert({ name = "coal", count = 50 })
-        tremor_test.drill = drill
+        vibration_test.drill = drill
         break
       end
     end
-    H.check("placed-drill", tremor_test.drill ~= nil)
+    H.check("placed-drill", vibration_test.drill ~= nil)
 
-    tremor_test.lava_chunk = find_chunk(surface, true)
-    tremor_test.rock_chunk = find_chunk(surface, false)
-    H.check("found-lava-and-rock-chunks", tremor_test.lava_chunk ~= nil and tremor_test.rock_chunk ~= nil)
+    vibration_test.lava_chunk = find_chunk(surface, true)
+    vibration_test.rock_chunk = find_chunk(surface, false)
+    H.check("found-lava-and-rock-chunks", vibration_test.lava_chunk ~= nil and vibration_test.rock_chunk ~= nil)
   end,
   ticks = function()
     H.at(2, function()
       local surface = vulcanus()
       for _, key in pairs({ "lava_chunk", "rock_chunk" }) do
-        local c = tremor_test[key]
+        local c = vibration_test[key]
         surface.pollute({ c.x * 32 + 16, c.y * 32 + 16 }, 1000)
-        tremor_test[key .. "_start"] = surface.get_pollution({ c.x * 32 + 16, c.y * 32 + 16 })
+        vibration_test[key .. "_start"] = surface.get_pollution({ c.x * 32 + 16, c.y * 32 + 16 })
       end
     end)
     H.at(1800, function()
       local surface = vulcanus()
       local stats = game.get_pollution_statistics(surface)
       local emitted = stats.get_input_count("burner-mining-drill")
-      H.check("drill-emits-tremors", emitted > 0, string.format("%.2f emitted", emitted))
+      H.check("drill-emits-vibration", emitted > 0, string.format("%.2f emitted", emitted))
       local function left(key)
-        local c = tremor_test[key]
+        local c = vibration_test[key]
         return surface.get_pollution({ c.x * 32 + 16, c.y * 32 + 16 })
       end
       local lava, rock = left("lava_chunk"), left("rock_chunk")
-      H.info("after-30s", string.format("lava chunk %.1f, rock chunk %.1f (from %.0f)", lava, rock, tremor_test.lava_chunk_start))
+      H.info("after-30s", string.format("lava chunk %.1f, rock chunk %.1f (from %.0f)", lava, rock, vibration_test.lava_chunk_start))
       H.check("lava-chunk-absorbs-faster", lava < rock)
-      H.check("rock-absorbs", rock < tremor_test.rock_chunk_start)
+      H.check("rock-absorbs", rock < vibration_test.rock_chunk_start)
       H.done()
     end)
+  end,
+}
+
+-- vibration-investigate: loud vibration in a territory chunk draws its demolisher.
+local inv = {}
+phases["vibration-investigate-add"] = {
+  tuning = {
+    expansion_enabled = false, growth_enabled = false, nest_enabled = false, hatch_enabled = false,
+    vibration_check_interval = 1000000, -- driven by run_event only
+    vibration_investigate_threshold = 20,
+    vibration_investigate_cooldown = 1000000,
+  },
+  init = function()
+    local surface = vulcanus()
+    -- A demolisher and an explored chunk of its territory 100+ tiles from its head.
+    for _, unit in pairs(surface.get_segmented_units()) do
+      local head = unit.get_body_nodes()[1]
+      for _, c in pairs(unit.territory.get_chunks()) do
+        local centre = { x = c.x * 32 + 16, y = c.y * 32 + 16 }
+        if not inv.unit and surface.is_chunk_generated(c) and coil_dist(head, centre) > 100 then
+          inv.unit, inv.chunk, inv.centre = unit, c, centre
+        end
+      end
+    end
+    H.check("found-target", inv.unit ~= nil)
+    inv.start_distance = coil_dist(inv.unit.get_body_nodes()[1], inv.centre)
+    surface.pollute(inv.centre, 10)
+    H.equal("quiet-chunk-ignored", run("vibration"), 0)
+    surface.pollute(inv.centre, 500)
+    H.equal("loud-chunk-draws-investigation", run("vibration"), 1)
+    local ai = inv.unit.get_ai_state()
+    H.check("investigating", ai.type == defines.segmented_unit_ai_state.investigating)
+    H.check("toward-loud-chunk", ai.destination and coil_dist(ai.destination, inv.centre) < 1, serpent.line(ai.destination))
+    H.equal("not-resent-while-investigating", run("vibration"), 0)
+    -- Something of the player's at the spot, to see what the demolisher does there.
+    inv.target = surface.create_entity({ name = "stone-wall", position = surface.find_non_colliding_position("stone-wall", inv.centre, 10, 1), force = "player" })
+    H.info("start", string.format("%.0f tiles away", inv.start_distance))
+  end,
+  ticks = function()
+    local function report()
+      if inv.reported then return end
+      local d = coil_dist(inv.unit.get_body_nodes()[1], inv.centre)
+      local state = inv.unit.get_ai_state().type
+      local names = {}
+      for k, v in pairs(defines.segmented_unit_ai_state) do names[v] = k end
+      if d < 30 and not inv.arrived then
+        inv.arrived = H.phase_tick()
+        H.info("arrived", "at phase tick " .. inv.arrived .. ", state " .. names[state])
+      end
+      if inv.arrived and H.phase_tick() >= inv.arrived + 600 then
+        inv.reported = true
+        H.info("after-arrival", "state " .. names[state] .. ", wall " .. (inv.target.valid and ("health " .. inv.target.health) or "destroyed"))
+        H.check("attacks-player-building-at-source", not inv.target.valid)
+        H.check("reached-loud-chunk", true)
+        vulcanus().pollute(inv.centre, 500)
+        H.equal("cooldown-stops-repeat", run("vibration"), 0)
+        remote.call(MOD, "set_tuning", { vibration_investigate_cooldown = 0 })
+        H.equal("repeats-after-cooldown", run("vibration"), 1)
+        H.equal("investigations-counted", state_stats().investigations, 2)
+        H.done()
+      elseif H.phase_tick() > 7900 then
+        inv.reported = true
+        H.check("reached-loud-chunk", false, string.format("still %.0f tiles away", d))
+        H.done()
+      end
+    end
+    for offset = 30, 8000, 30 do H.at(offset, report) end
   end,
 }
 

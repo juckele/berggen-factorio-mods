@@ -20,6 +20,7 @@
 --   storage.nests         map of nest id -> nest (site, parent, eggs)
 --   storage.egg_registrations map of on_object_destroyed registration number -> {nest, egg}
 --   storage.retry_after   map of unit_number -> tick before which that demolisher won't nest again
+--   storage.last_investigation map of unit_number -> tick it was last sent after vibration
 --   storage.tuning        overrides for tuning.lua, set through the remote interface
 --   storage.stats         counters, exposed through the remote interface for tests and other mods
 
@@ -85,6 +86,8 @@ local function new_stats()
     hatched_free_space = 0,
     hatched_old = 0,
     eggs_destroyed = 0,
+    vibration_attempts = 0,
+    investigations = 0,
   }
 end
 
@@ -137,12 +140,8 @@ end
 ---------------------------------------------------------------------------------------------------
 -- Event clocks
 
--- Hook for pollution: every event's cooldown is divided by this. Not designed yet, so 1.
-local function pollution_multiplier(surface)
-  return 1
-end
-
--- Vanilla's biter expansion cooldown on the map's settings, times the event's scale.
+-- Vanilla's biter expansion cooldown on the map's settings, times the event's scale. Evolution on
+-- Vulcanus rises with time and vibration, which is how vibration speeds every event up.
 local function event_cooldown(surface, event)
   local override = settings.global[SETTING_INTERVAL].value
   if override > 0 then return override end
@@ -152,7 +151,7 @@ local function event_cooldown(surface, event)
   local scale = T(event .. "_scale")
   local max = config.max_expansion_cooldown * scale
   local min = config.min_expansion_cooldown * scale
-  local cooldown = (max + (min - max) * t) / pollution_multiplier(surface)
+  local cooldown = max + (min - max) * t
   return math.max(1, math.floor(cooldown + 0.5))
 end
 
@@ -806,9 +805,8 @@ local function hatch(surface, nest, egg, chunk, reason)
   })
   if child then
     child.set_body_nodes(coil.curl(egg.position, child.max_body_nodes))
-    if chunk_key(chunk_of(egg.position)) ~= key then
-      child.set_ai_state({ type = AI.investigating, destination = chunk_centre(chunk) })
-    end
+    -- It owns its chunk straight away and finds its own way there along its patrol route.
+    child.set_ai_state({ type = AI.patrolling, waypoint = 1 })
   else
     territory.destroy()
     return false
@@ -870,6 +868,53 @@ local function on_unit_gone(unit)
 end
 
 ---------------------------------------------------------------------------------------------------
+-- Vibration: a demolisher investigates the loudest chunk of its territory once the vibration
+-- there passes a threshold, the way vanilla demolishers investigate a disturbance.
+
+local function busy(unit)
+  local state = unit.get_ai_state().type
+  return state == AI.attacking or state == AI.enraged_at_target or state == AI.enraged_at_nothing
+    or state == AI.investigating or storage.trips[unit.unit_number] ~= nil
+end
+
+local function run_vibration_check(surface)
+  local threshold = T("vibration_investigate_threshold")
+  -- Loudest explored chunk per territory, found by walking the explored chunks once.
+  local loudest = {}
+  for chunk in surface.get_chunks() do
+    local centre = chunk_centre(chunk)
+    local amount = surface.get_pollution(centre)
+    if amount >= threshold then
+      local territory = surface.get_territory_for_chunk(chunk)
+      if territory then
+        local units = territory.get_segmented_units()
+        local unit = units[1]
+        if unit and unit.valid then
+          local best = loudest[unit.unit_number]
+          if not best or amount > best.amount then
+            loudest[unit.unit_number] = { unit = unit, amount = amount, position = centre }
+          end
+        end
+      end
+    end
+  end
+  local sent = 0
+  storage.last_investigation = storage.last_investigation or {}
+  local cooldown = T("vibration_investigate_cooldown")
+  for number, best in pairs(loudest) do
+    local last = storage.last_investigation[number]
+    if (not last or game.tick - last >= cooldown) and not busy(best.unit) then
+      best.unit.set_ai_state({ type = AI.investigating, destination = best.position })
+      storage.last_investigation[number] = game.tick
+      stat("investigations")
+      sent = sent + 1
+      debug_log("Demolisher investigates vibration of " .. string.format("%.1f", best.amount))
+    end
+  end
+  return sent > 0
+end
+
+---------------------------------------------------------------------------------------------------
 -- Lifecycle
 
 local HANDLERS = {
@@ -877,6 +922,7 @@ local HANDLERS = {
   growth = run_growth,
   nest = run_nest,
   hatch = run_hatch,
+  vibration = run_vibration_check, -- not a scaled event: runs on its own fixed interval
 }
 
 local function run_event(surface, event)
@@ -978,6 +1024,7 @@ script.on_event(defines.events.on_tick, function(event)
   local surface = tracked_surface()
   if not surface then return end
   if next(storage.trips) then update_trips(surface) end
+  if event.tick % T("vibration_check_interval") == 0 then run_event(surface, "vibration") end
   local enabled = game.map_settings.enemy_expansion.enabled
   for _, name in ipairs(EVENTS) do
     if event.tick >= (storage.next_event[name] or 0) then
@@ -1099,7 +1146,7 @@ remote.add_interface("vulcanus-demolisher-lifecycle", {
     local surface = tracked_surface()
     if surface then schedule_all(surface) end
   end,
-  -- Testing: run one event now ("expansion", "growth", "nest" or "hatch"). Returns whether it did
+  -- Testing: run one event now ("expansion", "growth", "nest", "hatch" or "vibration"). Returns whether it did
   -- something.
   run_event = function(name)
     local surface = tracked_surface()

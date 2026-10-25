@@ -23,13 +23,13 @@ data:extend({
     render_layer = "floor-mechanics",
     max_health = 1,
     pictures = table.deepcopy(nest_rock.pictures),
-    map_color = { 255, 120, 30 },
   },
   {
     -- One future demolisher. Destroying it before it hatches stops that demolisher.
     type = "simple-entity-with-force",
     name = "demolisher-egg",
     icon = egg_rock.icon,
+    -- Red dots on the map.
     flags = { "placeable-off-grid", "not-blueprintable", "not-deconstructable" },
     hidden = true,
     collision_box = { { -0.7, -0.7 }, { 0.7, 0.7 } },
@@ -40,7 +40,8 @@ data:extend({
     damaged_trigger_effect = table.deepcopy(egg_rock.damaged_trigger_effect),
     dying_trigger_effect = table.deepcopy(egg_rock.dying_trigger_effect),
     pictures = table.deepcopy(egg_rock.pictures),
-    map_color = { 255, 160, 60 },
+    map_color = { 255, 0, 0 },
+    enemy_map_color = { 255, 0, 0 },
     is_military_target = true,
   },
 })

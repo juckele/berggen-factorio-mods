@@ -41,6 +41,15 @@ local defaults = {
   eggs_min = 1,
   eggs_max = 3,
 
+  -- Vibration. Every check interval, each territory's loudest explored chunk is found; if its
+  -- vibration is at least the threshold, the territory's demolisher investigates it (unless it is
+  -- fighting, already investigating, nesting, or investigated within the cooldown).
+  -- For scale: one working electric drill emits 10 per minute, and a chunk of rock absorbs
+  -- about 1.2 per minute.
+  vibration_check_interval = 5 * 60,
+  vibration_investigate_threshold = 20,
+  vibration_investigate_cooldown = 60 * 60,
+
   -- Hatching: each hatch event picks one egg old enough to hatch, weighted by its situation.
   egg_min_age = 2 * 60 * 60,  -- no egg hatches younger than this
   egg_old_age = 30 * 60 * 60, -- an egg with nowhere better to go hatches only once this old
