@@ -17,25 +17,55 @@ goes back to being player-facing text for the mod portal.
 - **Starting area.** The territory-free starting area is recorded per Vulcanus surface, whether or not
   protection is on. A chunk counts if it is in or next to the map generator's starting-area disc
   (`demolisher_starting_area`) and has no territory once generated.
-- **Expansion clock.** Expansion is global per surface. With the override at 0, the cooldown
-  between expansions uses vanilla's biter formula on the map's enemy expansion settings,
-  `lerp(max_cooldown, min_cooldown, -e² + 2e)` with `e` the enemy evolution on Vulcanus, scaled
-  by 1/20 because each expansion retakes only one chunk: 3 min at no evolution to 30 s at full
-  evolution on default map settings. Turning enemy expansion off for the map stops it.
+- **Four event clocks.** Expansion, growth, nesting and hatching each run on a global clock per
+  surface. With the override at 0, each cooldown uses vanilla's biter formula on the map's enemy
+  expansion settings, `lerp(max_cooldown, min_cooldown, -e² + 2e)` with `e` the enemy evolution on
+  Vulcanus, times a per-event scale (expansion 1/20, growth 1/4, nest 1/2, hatch 1/10; see
+  `tuning.lua`), divided by a pollution multiplier (always 1 until pollution is designed).
+  Expansion at 1/20 is 3 min at no evolution to 30 s at full evolution on default map settings.
+- **Enemy expansion required.** The mod does nothing with enemy expansion turned off in the map
+  settings, and says so in chat once each time it finds it off.
 - **Retaking cleared land.** Every expansion, one cleared chunk next to a territory with a living
   demolisher joins that territory, explored or not. This is the mod's main loop: land the player
   clears doesn't stay clear. Retaken land never spawns extra demolishers.
 - **Other expansion.** When no cleared chunk borders a living territory, a territory may instead
   grow into a neighbouring explored chunk without territory. In practice that's only the starting
   area, so it only happens with protection off.
+- **Growth.** Each growth event looks at a few random demolishers; one may grow a size (small →
+  medium → big), with a sigmoid chance on its territory size (50% at 120 chunks for medium, 180
+  for big). It can't grow more than one size above what the map generator places at its
+  territory's centre. Growing replaces the demolisher with the bigger one in the same body.
+- **Nesting.** Each nest event may send one max-size demolisher with a territory of at least 150
+  chunks (at most 2 trips at once, one nest per demolisher) on a nesting trip:
+  1. *Travel:* its AI is put in the `investigating` state toward the nest site, the explored chunk
+     nearest its territory's centre. The engine steers it there.
+  2. *Coil:* within 24 tiles, the script takes over and moves the body along an inward spiral
+     (10 to 4 tiles from the site) at crawling speed, keeping the engine's 1-tile node spacing.
+  3. *Build:* it holds still for 10 s, then a nest marker and 1–3 eggs appear inside the coil.
+  4. *Return:* it goes back to patrolling from the nearest waypoint and uncoils naturally.
+  Attacks while travelling, or damage while coiling or building, end the trip without a nest and
+  the demolisher waits 5 minutes before trying again.
+- **Eggs and hatching.** Each hatch event picks one egg at least 2 minutes old, weighted by its
+  situation. The hatchling is a small demolisher with a one-chunk territory, which then grows like
+  any other:
+  - parent dead (weight 10): it takes the nest chunk, which retaking leaves alone while the nest
+    has eggs;
+  - cleared land next to the parent's explored land (weight 3): it takes the parent chunk
+    bordering it, nearest the nest, and walks there;
+  - otherwise, once 30 minutes old (weight 1): it takes the parent's edge chunk nearest the nest.
+  Each hatch shrinks the parent by one chunk, so repeated hatching eventually takes a parent under
+  the nesting minimum. Destroyed eggs are gone for good; the nest marker disappears with its last
+  egg. Nest and egg graphics are placeholders (Vulcanus hot rocks).
 - **Settings** (all map settings):
   - *Demolishers cannot expand into the starting area* (on). Turning it on later stops further
     growth without evicting territory that already grew there.
-  - *Expansion interval override* (10 ticks, very fast so testers can watch land being retaken).
-    0 uses the map settings (below); release will default to 0.
+  - *Expansion interval override* (10 ticks, very fast so testers can watch). Replaces every event
+    clock's cooldown when above 0; 0 uses the map settings. Release will default to 0.
   - *Debug logging* (off): writes decisions to `factorio-current.log`.
-- **Remote interface** `vulcanus-demolisher-lifecycle` (read-only): `get_state()`,
-  `get_safe_chunks()`, `is_safe_chunk(x, y)`, `get_cleared_chunks()`, `is_cleared_chunk(x, y)`. The headless tests use it, and other mods can too.
+- **Remote interface** `vulcanus-demolisher-lifecycle`. Reads: `get_state()`, `get_trips()`,
+  `get_nests()`, `get_safe_chunks()`, `is_safe_chunk(x, y)`, `get_cleared_chunks()`,
+  `is_cleared_chunk(x, y)`. For testing: `set_tuning{key = value}` overrides `tuning.lua` values,
+  and `run_event(name)` runs one event now. The headless tests use it, and other mods can too.
 
 Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-lifecycle).
 
@@ -55,6 +85,8 @@ Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-l
 - [ ] No-enemies mode: every territory is empty, so setup currently removes them all. Decide whether
       the mod should do anything at all with no enemies.
 - [ ] Test against a hand-played save (late game on Vulcanus, many kills, odd starting-area slider).
+- [x] Killing a demolisher whose territory is entirely unexplored clears it (found by the `nests`
+      test; dead territories were looked up by an explored chunk before).
 - [ ] Decide what to do when other mods destroy demolishers with `destroy()` without raising
       `script_raised_destroy_segmented_unit`: only the setup sweep catches those today.
 - [ ] Multiplayer check (a server run with two clients) before release.
@@ -62,10 +94,12 @@ Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-l
 ### 2. Game balance
 - [x] Expansion follows the map's enemy expansion settings (enabled, min/max cooldown) with
       vanilla's evolution scaling (`map-settings` test).
-- [ ] Tune the cooldown scale constants (1/20 of the map's cooldowns, one chunk per expansion), and
-      choose constants for splitting and births once those exist.
+- [ ] Tune `tuning.lua`: event scales, growth midpoints and width, nest minimum size, egg ages and
+      hatch weights.
 - [ ] Switch the override's default to 0 for release.
 - [ ] Measure how long a cleared area stays clear at the chosen rate, on a real base.
+- [ ] Performance: nesting trips update every tick (at most 2 at once). Growth samples 8
+      demolishers, and hatching scans the cleared chunks per nest.
 - [ ] Performance: every attempt scans all cleared chunks for ones bordering a living territory.
       Fine for hundreds of chunks; profile with thousands, and keep a frontier set if needed.
 
@@ -77,27 +111,25 @@ Decided:
 - Expansion is global per surface, like biter and pentapod expansion: the rate doesn't scale with
   explored area or territory count.
 
-Candidate mechanics (brainstorm, not yet chosen):
-- [ ] Growth by territory size: a territory above a size threshold has a chance (sigmoid-like
-      curve) to upgrade its demolisher small → medium → big. Retaking cleared land then makes
-      neighbours stronger, which punishes leaving a gap open.
-- [ ] Bifurcation: a demolisher splits into 2+ small demolishers, and its territory is partitioned
-      between them.
-- [ ] Births in gaps: cleared land bordered by two or more living territories gets a new small
-      demolisher and territory, instead of only being absorbed. Probably gives the most
-      interesting emergent shapes.
-- [ ] Budding: a big demolisher's tail breaks off as a small one at the territory edge.
-- [ ] Eggs: a visible, destroyable egg laid in a territory (a target for the ping rifle). Hatch
-      triggers considered, possibly combined in this priority order:
-      - when the parent dies: the young inherits the whole territory, so the kill doesn't free land
-        unless the egg is destroyed first;
-      - when cleared land borders the parent's territory: the young claims it;
-      - otherwise, after a long timer: the young takes part of the parent's territory.
-- [ ] Fragment survives a sloppy kill and keeps the territory.
-- [ ] Spawning from volcanoes or lava, so a fully cleared planet still refills.
-- [ ] Implementation notes: there's no in-place upgrade, so growth creates the new unit with the old
-      body nodes and destroys the old one. `LuaTerritory.regenerate_segmented_units()` spawns the
-      demolisher the map generator would place for a script-made territory (sized by distance).
+- Four kinds of event, each on its own global clock scaled by map settings × pollution: chunk
+  expansion, growth, nest creation, egg hatching.
+
+Built:
+- [x] Growth by territory size, gated by distance (`nests`, `nests-natural` tests).
+- [x] Nests: max-size demolishers travel to their territory's centre, coil, lay 1–3 eggs and return
+      to patrol (`nests`, `nest-interrupt` tests).
+- [x] Hatching weighted dead parent > free space > old, one chunk per hatchling (`nests` test).
+
+Open:
+- [ ] Hatchling arrival: a free-space hatchling walks from the nest to its chunk across the parent's
+      land; check that it looks right in game, and whether it should wait to claim the chunk until
+      it gets there.
+- [ ] Free space in unexplored land can't be used: a new territory needs an explored chunk, so the
+      egg waits for the old-egg rule instead.
+- [ ] Real graphics for the nest and eggs, and hatching effects and sound.
+- [ ] Should eggs show on the map, or only be found by scouting?
+- [ ] Other ideas from the brainstorm, not planned: bifurcation, births in gaps between two
+      territories, budding, fragments surviving a sloppy kill, spawning from volcanoes.
 
 ### 4. Territory expansion as a real threat
 - [x] Living territories retake cleared land, explored or not.
@@ -121,6 +153,8 @@ Candidate mechanics (brainstorm, not yet chosen):
 - [ ] Item, recipe, technology, graphics, and balance against the vanilla ways of killing demolishers.
 
 ### 7. Pollution
+- [ ] Every event clock divides its cooldown by `pollution_multiplier(surface)` in control.lua,
+      which returns 1. Decide what it measures.
 - [ ] Decide the model: territories absorb pollution like spawners and grow faster with it, pollution
       draws expansion toward the base, or both.
 - [ ] Make the effect visible to the player (statistics, tooltip, or map overlay).

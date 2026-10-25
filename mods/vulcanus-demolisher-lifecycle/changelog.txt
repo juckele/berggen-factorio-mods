@@ -13,6 +13,15 @@ Version: 0.2.0
       turning enemy expansion off stops it. A tick override setting (10 for now, so testers can watch it)
       replaces the map cooldown when above 0.
     - Removed debug chat messages; debug logging is a setting.
+    - Demolishers grow a size (small, medium, big) with odds based on their territory size, up to one size above
+      what the map places at their distance.
+    - Big demolishers with large territories travel to the centre of their territory, coil around it and lay a nest
+      of 1 to 3 eggs, then return to their patrol. Hurting one while it nests stops it.
+    - Eggs hatch into small demolishers with a one-chunk territory: soonest when their parent has died, then when
+      there is cleared land next to their parent's territory, otherwise once old. Eggs can be destroyed.
+    - Expansion, growth, nesting and hatching each follow the map's enemy expansion settings and evolution.
+    - Warns in chat when enemy expansion is turned off in the map settings, which the mod needs.
+    - Fixed: killing a demolisher whose territory was entirely unexplored left its territory behind.
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.0
 Date: 2025-07-30

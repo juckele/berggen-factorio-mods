@@ -112,6 +112,67 @@
       ]
     },
     {
+      "name": "nests",
+      "description": "Growth respects the distance gate; a max-size demolisher travels to its territory centre, coils, lays 4 eggs and resumes patrol; eggs hatch by age (one parent chunk), by free space (a parent chunk next to cleared land), or after the parent dies (the reserved nest chunk); a destroyed egg is removed.",
+      "steps": [
+        {
+          "phase": "established-setup",
+          "fixture": "established-start",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 12, "build": true },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        {
+          "phase": "nests-add",
+          "benchmark": 14100,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    },
+    {
+      "name": "nests-natural",
+      "description": "All four events on their own fast clocks with low thresholds and a few kills: demolishers grow, nest and hatch, and every territory keeps exactly one demolisher.",
+      "settings": { "demolisher-lifecycle-expansion-interval-ticks": 10 },
+      "steps": [
+        {
+          "phase": "established-setup",
+          "fixture": "established-start",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 12, "build": true },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        {
+          "phase": "nests-natural-add",
+          "benchmark": 16000,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    },
+    {
+      "name": "nest-interrupt",
+      "description": "Damaging a demolisher while it coils ends its nesting trip without a nest, and it doesn't immediately retry.",
+      "steps": [
+        {
+          "phase": "established-setup",
+          "fixture": "established-start",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 12, "build": true },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        {
+          "phase": "nest-interrupt-add",
+          "benchmark": 9600,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    },
+    {
       "name": "killed",
       "description": "Demolishers killed before the mod is added: their territories are removed and marked cleared, living neighbours retake the land (explored or not) at the default rate, and exploring it spawns nothing.",
       "steps": [

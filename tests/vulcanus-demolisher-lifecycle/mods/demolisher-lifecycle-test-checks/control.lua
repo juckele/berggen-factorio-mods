@@ -60,6 +60,8 @@ local function check_initialized(prefix)
     remote.call(MOD, "is_safe_chunk", math.floor(spawn.x / 32), math.floor(spawn.y / 32)))
 end
 
+local function coil_dist(a, b) return math.sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2) end
+
 local phases = {}
 
 ---------------------------------------------------------------------------------------------------
@@ -70,7 +72,7 @@ phases["new-game-create"] = {
     local s = state()
     H.check("no-vulcanus-yet", vulcanus() == nil)
     H.check("not-initialized-without-vulcanus", not s.initialized)
-    H.equal("schema", s.schema, 2)
+    H.equal("schema", s.schema, 3)
     H.done()
   end,
 }
@@ -241,9 +243,305 @@ phases["map-settings-add"] = {
     H.at(MAX_COOLDOWN + MIN_COOLDOWN + 10, function()
       local s = state()
       H.equal("no-attempt-with-expansion-disabled", s.stats.expansion_attempts, 1)
+      H.check("warns-when-expansion-disabled", s.warned_expansion_disabled)
       H.check("still-rescheduled-while-disabled", s.next_expansion_tick > first)
       H.done()
     end)
+  end,
+}
+
+---------------------------------------------------------------------------------------------------
+-- nests: growth, a nesting trip, and every way an egg can end. Events are driven with run_event so
+-- the order is fixed; only the trip itself runs on its own, tick by tick.
+
+local function units_by_number()
+  local map, count = {}, 0
+  for _, unit in pairs(vulcanus().get_segmented_units()) do
+    map[unit.unit_number] = unit
+    count = count + 1
+  end
+  return map, count
+end
+
+local function chunk_count(territory)
+  return #territory.get_chunks()
+end
+
+local function run(name, times)
+  local done = 0
+  for _ = 1, times or 1 do
+    if remote.call(MOD, "run_event", name) then done = done + 1 end
+  end
+  return done
+end
+
+local nest_test = {}
+
+phases["nests-add"] = {
+  tuning = {
+    expansion_enabled = false, growth_enabled = false, nest_enabled = false, hatch_enabled = false,
+    growth_midpoint = { ["medium-demolisher"] = 1, ["big-demolisher"] = 1 },
+    growth_width = 0.001,
+    eggs_min = 4, eggs_max = 4,
+    egg_min_age = 60, egg_old_age = 600,
+    nest_build_ticks = 120,
+  },
+  init = function()
+    local _, count = units_by_number()
+    nest_test.units = count
+    local tiers0 = { ["small-demolisher"] = 1, ["medium-demolisher"] = 2, ["big-demolisher"] = 3 }
+    nest_test.original_tiers = {}
+    for _, unit in pairs(vulcanus().get_segmented_units()) do nest_test.original_tiers[unit.unit_number] = tiers0[unit.prototype.name] end
+    -- Distance gate: nothing may grow past what the map generator places at its distance.
+    remote.call(MOD, "set_tuning", { growth_tiers_above_native = 0 })
+    run("growth", 20)
+    local tiers = { ["small-demolisher"] = 1, ["medium-demolisher"] = 2, ["big-demolisher"] = 3 }
+    local over = 0
+    for _, unit in pairs(vulcanus().get_segmented_units()) do
+      -- The map generator sizes a demolisher by its territory, so judge at the territory's centre,
+      -- and allow what the map generator placed.
+      local sx, sy, n = 0, 0, 0
+      for _, c in pairs(unit.territory.get_chunks()) do sx, sy, n = sx + c.x * 32 + 16, sy + c.y * 32 + 16, n + 1 end
+      local native = math.floor(vulcanus().calculate_tile_properties({ "demolisher_variation_expression" },
+        { { sx / n, sy / n } })["demolisher_variation_expression"][1]) + 1
+      local original = nest_test.original_tiers[unit.unit_number]
+      if tiers[unit.prototype.name] > math.max(native, original or 1) then over = over + 1 end
+    end
+    H.equal("no-growth-past-native-size", over, 0)
+    remote.call(MOD, "set_tuning", { growth_tiers_above_native = 2 })
+    local grew = run("growth", 60)
+    H.check("growth-happens", grew > 0, grew .. " growths")
+    local _, after = units_by_number()
+    H.equal("growth-keeps-one-demolisher-per-territory", after, count)
+    H.equal("growth-leaves-no-dead-territories", dead_territories(), 0)
+    local bigs = 0
+    for _, unit in pairs(vulcanus().get_segmented_units()) do
+      if unit.prototype.name == "big-demolisher" then bigs = bigs + 1 end
+    end
+    H.check("some-reach-max-size", bigs > 0, bigs .. " big demolishers")
+    remote.call(MOD, "set_tuning", { nest_min_chunks = 1, nest_max_trips = 1 })
+    H.equal("nest-trip-starts", run("nest"), 1)
+    H.equal("only-one-trip-at-a-time", run("nest"), 0)
+    local trip = remote.call(MOD, "get_trips")[1]
+    nest_test.trip = trip
+    nest_test.parent = units_by_number()[trip.unit_number]
+    H.info("trip", trip.unit_number .. " to " .. serpent.line(trip.site) .. ", head " ..
+      math.floor(coil_dist(nest_test.parent.get_body_nodes()[1], trip.site)) .. " tiles away")
+    H.check("nest-at-territory-centre", vulcanus().get_territory_for_chunk(trip.chunk) ~= nil)
+  end,
+  ticks = function()
+    local step = 0
+    local seen = {}
+    local function poll()
+      local t = nest_test
+      if t.finished then return end
+      local trips = remote.call(MOD, "get_trips")
+      local trip = trips[1]
+      if trip then
+        if not seen[trip.phase] then
+          seen[trip.phase] = H.phase_tick()
+          H.info("trip-phase-" .. trip.phase, "at phase tick " .. H.phase_tick())
+        end
+        if trip.phase == "build" and not t.checked_coil then
+          t.checked_coil = true
+          local far = 0
+          for _, node in pairs(t.parent.get_body_nodes()) do far = math.max(far, coil_dist(node, trip.site)) end
+          H.check("coiled-around-nest", far <= 12, "furthest body node " .. string.format("%.1f", far) .. " tiles from the nest")
+        end
+        if H.phase_tick() > 13000 then
+          H.check("trip-finished-in-time", false, "still in " .. trip.phase)
+          t.finished = true
+          H.done()
+        end
+        return
+      end
+      if not t.nest then
+        local nests = remote.call(MOD, "get_nests")
+        H.equal("nest-laid", #nests, 1)
+        if #nests ~= 1 then t.finished = true; H.done(); return end
+        t.nest = nests[1]
+        t.laid_tick = game.tick
+        H.check("trip-went-through-every-phase", seen.travel ~= nil and seen.coil ~= nil and seen.build ~= nil)
+        H.equal("eggs-laid", #t.nest.eggs, 4)
+        local furthest = 0
+        for _, egg in pairs(t.nest.eggs) do furthest = math.max(furthest, coil_dist(egg.position, t.nest.site)) end
+        H.check("eggs-at-nest", furthest <= 5, "furthest egg " .. string.format("%.1f", furthest) .. " tiles from the nest")
+        H.equal("nest-marker-placed", vulcanus().count_entities_filtered({ name = "demolisher-nest" }), 1)
+        H.equal("egg-entities", vulcanus().count_entities_filtered({ name = "demolisher-egg" }), 4)
+        H.equal("nest-chunk-reserved", state().reserved_chunk_count, 1)
+        H.check("parent-back-on-patrol", t.parent.get_ai_state().type == defines.segmented_unit_ai_state.patrolling)
+        H.equal("too-young-to-hatch", run("hatch"), 0)
+        t.stage = "aging"
+        return
+      end
+      local age = game.tick - t.laid_tick
+      if t.stage == "aging" and age >= 300 then
+        H.equal("not-old-enough-with-parent-alive", run("hatch"), 0)
+        t.stage = "old"
+      elseif t.stage == "old" and age >= 620 then
+        local territory = t.parent.territory
+        local before = chunk_count(territory)
+        local _, units_before = units_by_number()
+        H.equal("old-egg-hatches", run("hatch"), 1)
+        H.equal("old-hatch-reason", state().stats.hatched_old, 1)
+        H.equal("old-hatch-takes-one-parent-chunk", chunk_count(territory), before - 1)
+        local _, units_after = units_by_number()
+        H.equal("old-hatch-adds-one-demolisher", units_after, units_before + 1)
+        H.equal("eggs-left-after-old-hatch", state().egg_count, 3)
+        -- Free space: kill a neighbour, so cleared land borders the parent's territory. The border
+        -- must be explored land: a hatchling's territory needs an explored chunk.
+        local parent_set = {}
+        for _, c in pairs(territory.get_chunks()) do
+          if vulcanus().is_chunk_generated(c) then parent_set[c.x .. "," .. c.y] = true end
+        end
+        for _, unit in pairs(vulcanus().get_segmented_units()) do
+          if unit.unit_number ~= t.parent.unit_number and not t.neighbour and chunk_count(unit.territory) > 1 then
+            for _, c in pairs(unit.territory.get_chunks()) do
+              if parent_set[(c.x + 1) .. "," .. c.y] or parent_set[(c.x - 1) .. "," .. c.y]
+                or parent_set[c.x .. "," .. (c.y + 1)] or parent_set[c.x .. "," .. (c.y - 1)] then
+                t.neighbour = unit
+                break
+              end
+            end
+          end
+        end
+        H.check("found-neighbour", t.neighbour ~= nil)
+        H.info("neighbour", t.neighbour.prototype.name .. ", " .. chunk_count(t.neighbour.territory) .. " chunks")
+        t.neighbour.die()
+        t.stage = "free"
+      elseif t.stage == "free" and age >= 640 then
+        H.check("neighbour-land-cleared", state().cleared_chunk_count > 0, state().cleared_chunk_count .. " cleared chunks")
+        local before = chunk_count(t.parent.territory)
+        H.equal("free-space-egg-hatches", run("hatch"), 1)
+        H.equal("free-space-hatch-reason", state().stats.hatched_free_space, 1)
+        H.equal("free-space-hatch-takes-one-parent-chunk", chunk_count(t.parent.territory), before - 1)
+        -- The hatchling's chunk must border the cleared land.
+        local cleared = {}
+        for _, c in pairs(remote.call(MOD, "get_cleared_chunks")) do cleared[c.x .. "," .. c.y] = true end
+        local newest
+        for _, unit in pairs(vulcanus().get_segmented_units()) do
+          if unit.prototype.name == "small-demolisher" and chunk_count(unit.territory) == 1 then
+            if not newest or unit.unit_number > newest.unit_number then newest = unit end
+          end
+        end
+        local c = newest.territory.get_chunks()[1]
+        H.check("free-space-hatchling-borders-cleared-land", cleared[(c.x + 1) .. "," .. c.y] or cleared[(c.x - 1) .. "," .. c.y]
+          or cleared[c.x .. "," .. (c.y + 1)] or cleared[c.x .. "," .. (c.y - 1)] or false)
+        H.check("hatchling-starts-at-egg", coil_dist(newest.get_body_nodes()[1], t.nest.site) < 12)
+        -- Destroying an egg removes it.
+        local egg = vulcanus().find_entities_filtered({ name = "demolisher-egg", limit = 1 })[1]
+        egg.die()
+        t.stage = "destroyed"
+      elseif t.stage == "destroyed" and age >= 660 then
+        H.equal("destroyed-egg-counted", state().stats.eggs_destroyed, 1)
+        H.equal("one-egg-left", state().egg_count, 1)
+        t.nest_chunk = t.nest.chunk
+        t.parent.die()
+        t.stage = "orphaned"
+      elseif t.stage == "orphaned" and age >= 680 then
+        H.check("parent-marked-dead", remote.call(MOD, "get_nests")[1].parent_dead)
+        H.check("nest-chunk-cleared", remote.call(MOD, "is_cleared_chunk", t.nest_chunk.x, t.nest_chunk.y))
+        -- Neighbours retake the parent's land, except the nest chunk, which waits for the egg.
+        remote.call(MOD, "set_tuning", { expansion_enabled = false })
+        local retaken = run("expansion", 50)
+        H.check("parent-land-retaken", retaken > 0, retaken .. " chunks")
+        H.check("nest-chunk-kept-for-egg", vulcanus().get_territory_for_chunk(t.nest_chunk) == nil)
+        local _, units_before = units_by_number()
+        H.equal("orphan-egg-hatches", run("hatch"), 1)
+        H.equal("orphan-hatch-reason", state().stats.hatched_dead_parent, 1)
+        local territory = vulcanus().get_territory_for_chunk(t.nest_chunk)
+        H.check("orphan-takes-nest-chunk", territory ~= nil and chunk_count(territory) == 1)
+        local _, units_after = units_by_number()
+        H.equal("orphan-hatch-adds-one-demolisher", units_after, units_before + 1)
+        H.equal("nest-gone-when-empty", state().nest_count, 0)
+        H.equal("nest-marker-removed", vulcanus().count_entities_filtered({ name = "demolisher-nest" }), 0)
+        H.equal("reservation-released", state().reserved_chunk_count, 0)
+        H.equal("no-dead-territories", dead_territories(), 0)
+        t.finished = true
+        H.done()
+      end
+    end
+    for offset = 20, 14000, 20 do H.at(offset, poll) end
+  end,
+}
+
+-- nests-natural: every event on its own clock (10-tick override), thresholds low. Nothing is
+-- forced; this checks the pieces work together and keep one demolisher per territory.
+phases["nests-natural-add"] = {
+  tuning = {
+    growth_midpoint = { ["medium-demolisher"] = 1, ["big-demolisher"] = 1 },
+    growth_width = 0.001, growth_tiers_above_native = 2,
+    nest_min_chunks = 1, nest_build_ticks = 60,
+    egg_min_age = 300, egg_old_age = 1200,
+  },
+  ticks = function()
+    H.at(5000, function()
+      -- Kill a few demolishers so eggs have orphan and free-space reasons too.
+      local killed = 0
+      for _, unit in pairs(vulcanus().get_segmented_units()) do
+        if killed < 4 and #unit.territory.get_chunks() > 1 then unit.die(); killed = killed + 1 end
+      end
+    end)
+    H.at(15900, function()
+      local s = state()
+      H.info("stats", s.stats)
+      H.check("grew", s.stats.growths > 0)
+      H.check("built-nests", s.stats.nests_built > 0, s.stats.nests_built .. " nests")
+      H.check("hatched", s.stats.eggs_hatched > 0, s.stats.eggs_hatched .. " hatched")
+      local units, territories = #vulcanus().get_segmented_units(), #vulcanus().get_territories()
+      H.equal("one-demolisher-per-territory", units, territories)
+      local multi = 0
+      for _, t in pairs(vulcanus().get_territories()) do if #t.get_segmented_units() > 1 then multi = multi + 1 end end
+      H.equal("no-shared-territories", multi, 0)
+      H.equal("no-dead-territories", dead_territories(), 0)
+      local eggs = vulcanus().count_entities_filtered({ name = "demolisher-egg" })
+      H.equal("egg-entities-match-state", eggs, s.egg_count)
+      H.equal("nest-markers-match-state", vulcanus().count_entities_filtered({ name = "demolisher-nest" }), s.nest_count)
+      H.done()
+    end)
+  end,
+}
+
+-- nest-interrupt: hurting a demolisher while it coils ends the trip and it doesn't retry at once.
+phases["nest-interrupt-add"] = {
+  tuning = {
+    expansion_enabled = false, growth_enabled = false, nest_enabled = false, hatch_enabled = false,
+    growth_midpoint = { ["medium-demolisher"] = 1, ["big-demolisher"] = 1 },
+    growth_width = 0.001, growth_tiers_above_native = 2,
+    nest_min_chunks = 1, nest_max_trips = 1,
+  },
+  init = function()
+    run("growth", 60)
+    H.equal("trip-starts", run("nest"), 1)
+  end,
+  ticks = function()
+    local t = {}
+    local function poll()
+      if t.finished then return end
+      local trip = remote.call(MOD, "get_trips")[1]
+      if not t.unit_number and trip and trip.phase == "coil" then
+        t.unit_number = trip.unit_number
+        for _, unit in pairs(vulcanus().get_segmented_units()) do
+          if unit.unit_number == trip.unit_number then unit.damage(100, "player", "physical") end
+        end
+        t.at = H.phase_tick()
+      elseif t.unit_number and H.phase_tick() >= t.at + 20 then
+        local s = state()
+        H.equal("trip-aborted", s.stats.trips_aborted, 1)
+        H.equal("no-nest-laid", s.stats.nests_built, 0)
+        run("nest")
+        local again = false
+        for _, tr in pairs(remote.call(MOD, "get_trips")) do if tr.unit_number == t.unit_number then again = true end end
+        H.check("no-immediate-retry", not again)
+        t.finished = true
+        H.done()
+      elseif H.phase_tick() > 9000 then
+        H.check("reached-coil", false)
+        t.finished = true
+        H.done()
+      end
+    end
+    for offset = 10, 9500, 10 do H.at(offset, poll) end
   end,
 }
 
@@ -308,9 +606,12 @@ if not phase then
   error("demolisher-lifecycle-test-checks: no checks for phase " .. tostring(H.phase))
 end
 if phase.ticks then phase.ticks() end
-if phase.init then
-  script.on_init(phase.init)
-end
+script.on_init(function()
+  -- Phases test one behaviour at a time: unless a phase sets `tuning`, growth, nesting and
+  -- hatching are off so they can't change unit counts or territories under the other checks.
+  remote.call(MOD, "set_tuning", phase.tuning or { growth_enabled = false, nest_enabled = false, hatch_enabled = false })
+  if phase.init then phase.init() end
+end)
 if phase.setting_changed then
   script.on_event(defines.events.on_runtime_mod_setting_changed, phase.setting_changed)
 end
