@@ -2,12 +2,13 @@
 Version: 0.2.0
   Changes:
     - Targets Factorio 2.1.
-    - Killing the last demolisher of a territory removes the territory, and adding the mod to a save removes
-      territories whose demolishers were already killed. Removed land doesn't spawn new demolishers when it is
-      explored later.
+    - Killing the last demolisher of a territory turns its land into cleared land, and adding the mod to a save
+      does the same for territories whose demolishers were already killed. Exploring cleared land doesn't spawn
+      new demolishers.
+    - Territories with a living demolisher retake neighbouring cleared land, one chunk at a time, explored or not.
     - Demolisher territory no longer expands into the starting area (setting, on by default). The starting area
       is recorded even with the setting off.
-    - Territory expansion runs on a configurable interval instead of every second.
+    - Territory growth runs on a configurable interval in ticks (10 for now, so testers can watch it).
     - Removed debug chat messages; debug logging is a setting.
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.0

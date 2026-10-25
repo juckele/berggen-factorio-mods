@@ -8,15 +8,18 @@
 --     safe_chunks         set of "x,y" chunk keys forming the original safe starting area
 --     safe_chunk_count    number of entries in safe_chunks
 --     safe_candidates     set of "x,y" keys of ungenerated chunks still to be decided
+--     cleared_chunks      map of "x,y" key -> chunk position: land of dead territories that living
+--                         territories can retake. Includes ungenerated chunks.
+--     cleared_chunk_count number of entries in cleared_chunks
 --   storage.pending       territories to re-check after a demolisher died, keyed by chunk "x,y"
 --   storage.last_expansion_tick
 --   storage.stats         counters, exposed through the remote interface for tests and other mods
 
 local SURFACE_NAME = "vulcanus"
-local SCHEMA = 1
+local SCHEMA = 2
 
 local SETTING_PROTECT = "demolisher-lifecycle-protect-starting-area"
-local SETTING_INTERVAL = "demolisher-lifecycle-expansion-interval"
+local SETTING_INTERVAL = "demolisher-lifecycle-expansion-interval-ticks"
 local SETTING_DEBUG = "demolisher-lifecycle-debug-log"
 
 -- How far from the map origin (in chunks) to look for the starting area. Vulcanus puts its
@@ -40,6 +43,7 @@ local function new_stats()
     territories_cleared = 0,
     chunks_cleared = 0,
     expansions = 0,
+    chunks_retaken = 0,
     expansions_blocked_by_safe_zone = 0,
   }
 end
@@ -52,6 +56,15 @@ local function setup_storage()
   storage.schema = SCHEMA
   storage.pending = storage.pending or {}
   storage.stats = storage.stats or new_stats()
+  for key, value in pairs(new_stats()) do
+    if storage.stats[key] == nil then storage.stats[key] = value end
+  end
+  local v = storage.vulcanus
+  if v and not v.cleared_chunks then
+    -- 0.2.0 didn't mark cleared land, so land it cleared can't be retaken.
+    v.cleared_chunks = {}
+    v.cleared_chunk_count = 0
+  end
   storage.last_expansion_tick = storage.last_expansion_tick or game.tick
 end
 
@@ -139,13 +152,33 @@ end
 ---------------------------------------------------------------------------------------------------
 -- Dead territories
 
--- Vanilla leaves a territory in place when its last demolisher dies. Clearing a territory with
--- LuaTerritory.destroy() lets the map generator create a fresh territory (with a fresh demolisher)
--- on any of its chunks that get generated later, so instead the chunks are set to no territory,
--- which also deletes the territory.
+-- In vanilla a territory stays after its last demolisher dies. This mod needs that land free so
+-- living territories can retake it, so it removes the territory. LuaTerritory.destroy() would let
+-- the map generator create a fresh territory (with a fresh demolisher) on any of its chunks that
+-- get generated later, so instead the chunks are set to no territory, which also deletes the
+-- territory. The chunks are marked as cleared so living territories can
+-- retake them (see Expansion).
+local function mark_cleared(chunk)
+  local v = storage.vulcanus
+  local key = chunk_key(chunk)
+  if not v.cleared_chunks[key] then
+    v.cleared_chunks[key] = { x = chunk.x, y = chunk.y }
+    v.cleared_chunk_count = v.cleared_chunk_count + 1
+  end
+end
+
+local function unmark_cleared(key)
+  local v = storage.vulcanus
+  if v.cleared_chunks[key] then
+    v.cleared_chunks[key] = nil
+    v.cleared_chunk_count = v.cleared_chunk_count - 1
+  end
+end
+
 local function clear_territory(surface, territory)
   local chunks = territory.get_chunks()
   surface.set_territory_for_chunks(chunks, nil)
+  for _, chunk in pairs(chunks) do mark_cleared(chunk) end
   storage.stats.territories_cleared = storage.stats.territories_cleared + 1
   storage.stats.chunks_cleared = storage.stats.chunks_cleared + #chunks
   debug_log("Cleared a territory of " .. #chunks .. " chunks")
@@ -195,6 +228,43 @@ end
 
 local NEIGHBOURS = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
 
+local function has_living_units(territory)
+  return territory ~= nil and territory.valid and #territory.get_segmented_units() > 0
+end
+
+-- Retaking: a cleared chunk next to a territory with a living demolisher joins that territory. This
+-- works on cleared chunks nobody has explored yet, which plain expansion can't see.
+local function try_retake(surface, protect)
+  local v = storage.vulcanus
+  local frontier, blocked = {}, false
+  for key, chunk in pairs(v.cleared_chunks) do
+    if surface.get_territory_for_chunk(chunk) ~= nil then
+      unmark_cleared(key) -- taken some other way
+    else
+      for _, d in ipairs(NEIGHBOURS) do
+        local territory = surface.get_territory_for_chunk({ x = chunk.x + d[1], y = chunk.y + d[2] })
+        if has_living_units(territory) then
+          if protect and is_safe_chunk(chunk) then
+            blocked = true
+          else
+            frontier[#frontier + 1] = { key = key, chunk = chunk, territory = territory }
+          end
+          break
+        end
+      end
+    end
+  end
+  if #frontier == 0 then return false, blocked end
+  local pick = frontier[math.random(1, #frontier)]
+  surface.set_territory_for_chunks({ pick.chunk }, pick.territory)
+  pick.territory.regenerate_patrol_path()
+  unmark_cleared(pick.key)
+  storage.stats.expansions = storage.stats.expansions + 1
+  storage.stats.chunks_retaken = storage.stats.chunks_retaken + 1
+  debug_log("Territory retook cleared chunk " .. pick.key)
+  return true, blocked
+end
+
 local function expansion_targets(surface, territory, protect)
   local targets, blocked = {}, 0
   for _, chunk in pairs(territory.get_chunks()) do
@@ -212,14 +282,15 @@ local function expansion_targets(surface, territory, protect)
   return targets, blocked
 end
 
-local function try_expand(surface)
+-- Plain expansion: into a generated neighbouring chunk without territory that was never marked
+-- cleared, which in practice means the starting area, so this only finds targets with protection off.
+local function try_expand_free_land(surface, protect)
   local territories = {}
   for _, t in pairs(surface.get_territories()) do
     if #t.get_segmented_units() > 0 then territories[#territories + 1] = t end
   end
-  if #territories == 0 then return false end
+  if #territories == 0 then return false, false end
 
-  local protect = settings.global[SETTING_PROTECT].value
   local blocked_any = false
   for _ = 1, math.min(EXPANSION_TERRITORY_SAMPLES, #territories) do
     local index = math.random(1, #territories)
@@ -233,13 +304,24 @@ local function try_expand(surface)
       territory.regenerate_patrol_path()
       storage.stats.expansions = storage.stats.expansions + 1
       debug_log("Territory expanded into chunk " .. chunk_key(target))
-      return true
+      return true, blocked_any
     end
   end
-  if blocked_any then
+  return false, blocked_any
+end
+
+local function try_expand(surface)
+  local protect = settings.global[SETTING_PROTECT].value
+  local done, blocked = try_retake(surface, protect)
+  if not done then
+    local blocked_free
+    done, blocked_free = try_expand_free_land(surface, protect)
+    blocked = blocked or blocked_free
+  end
+  if not done and blocked then
     storage.stats.expansions_blocked_by_safe_zone = storage.stats.expansions_blocked_by_safe_zone + 1
   end
-  return false
+  return done
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -258,6 +340,8 @@ local function initialize_vulcanus(surface)
     safe_chunks = safe,
     safe_chunk_count = count,
     safe_candidates = candidates,
+    cleared_chunks = {},
+    cleared_chunk_count = 0,
   }
   storage.last_expansion_tick = game.tick
   debug_log("Initialized on " .. surface.name .. " with " .. count .. " safe chunks")
@@ -304,23 +388,21 @@ script.on_event(defines.events.script_raised_destroy_segmented_unit, function(ev
   queue_territory_check(event.segmented_unit)
 end)
 
-script.on_event(defines.events.on_tick, function()
+script.on_event(defines.events.on_tick, function(event)
   if next(storage.pending) then process_pending() end
+  if event.tick - storage.last_expansion_tick >= settings.global[SETTING_INTERVAL].value then
+    local surface = tracked_surface()
+    if surface then
+      storage.last_expansion_tick = event.tick
+      try_expand(surface)
+    end
+  end
 end)
 
-script.on_nth_tick(60, function(event)
-  local surface = tracked_surface()
-  if not surface then
-    -- Catches a Vulcanus created where on_surface_created doesn't reach this mod, such as
-    -- another mod's on_init.
-    if game.surfaces[SURFACE_NAME] then check_vulcanus() end
-    return
-  end
-  local interval = settings.global[SETTING_INTERVAL].value * 60
-  if event.tick - storage.last_expansion_tick >= interval then
-    storage.last_expansion_tick = event.tick
-    try_expand(surface)
-  end
+script.on_nth_tick(60, function()
+  -- Catches a Vulcanus created where on_surface_created doesn't reach this mod, such as another
+  -- mod's on_init.
+  if not tracked_surface() and game.surfaces[SURFACE_NAME] then check_vulcanus() end
 end)
 
 ---------------------------------------------------------------------------------------------------
@@ -343,6 +425,7 @@ remote.add_interface("vulcanus-demolisher-lifecycle", {
       initialized_tick = v and v.initialized_tick,
       safe_chunk_count = v and v.safe_chunk_count or 0,
       safe_candidate_count = v and table_size(v.safe_candidates) or 0,
+      cleared_chunk_count = v and v.cleared_chunk_count or 0,
       pending_checks = table_size(storage.pending or {}),
       last_expansion_tick = storage.last_expansion_tick,
       stats = copy(storage.stats or new_stats()),
@@ -358,6 +441,18 @@ remote.add_interface("vulcanus-demolisher-lifecycle", {
       result[#result + 1] = { x = tonumber(x), y = tonumber(y) }
     end
     return result
+  end,
+  -- Array of {x, y} chunk positions marked cleared and not yet retaken.
+  get_cleared_chunks = function()
+    local result = {}
+    local v = storage.vulcanus
+    if not v then return result end
+    for _, chunk in pairs(v.cleared_chunks) do result[#result + 1] = { x = chunk.x, y = chunk.y } end
+    return result
+  end,
+  is_cleared_chunk = function(x, y)
+    local v = storage.vulcanus
+    return v ~= nil and v.cleared_chunks[x .. "," .. y] ~= nil
   end,
   is_safe_chunk = function(x, y)
     return is_safe_chunk({ x = x, y = y })

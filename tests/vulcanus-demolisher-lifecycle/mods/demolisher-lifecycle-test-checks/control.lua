@@ -70,7 +70,7 @@ phases["new-game-create"] = {
     local s = state()
     H.check("no-vulcanus-yet", vulcanus() == nil)
     H.check("not-initialized-without-vulcanus", not s.initialized)
-    H.equal("schema", s.schema, 1)
+    H.equal("schema", s.schema, 2)
     H.done()
   end,
 }
@@ -107,20 +107,24 @@ phases["new-game-run"] = {
       local s = state()
       H.equal("kill-clears-territory", s.stats.territories_cleared, 1)
       H.equal("kill-territory-count", #vulcanus().get_territories(), victim.territories - 1)
-      H.equal("kill-chunks-free", chunks_with_territory(victim.chunks), 0)
       H.equal("kill-no-pending", s.pending_checks, 0)
+      -- Retaking may already have started, so cleared + retaken must account for every chunk.
+      H.equal("kill-marks-chunks-cleared", s.cleared_chunk_count + s.stats.chunks_retaken, #victim.chunks)
+      H.equal("only-retaken-chunks-have-territory", chunks_with_territory(victim.chunks), s.stats.chunks_retaken)
+      victim.units = #vulcanus().get_segmented_units()
       generate(victim.ungenerated)
     end)
     H.at(6, function()
-      H.equal("cleared-land-does-not-respawn", chunks_with_territory(victim.chunks), 0)
       H.equal("cleared-land-no-new-territories", #vulcanus().get_territories(), victim.territories - 1)
+      H.equal("cleared-land-no-new-demolishers", #vulcanus().get_segmented_units(), victim.units)
     end)
     H.at(2300, function()
       local s = state()
       H.info("final-stats", s.stats)
-      H.check("territories-expand", s.stats.expansions > 0, s.stats.expansions .. " expansions")
-      H.check("expansion-retakes-cleared-land", chunks_with_territory(victim.chunks) > 0,
-        chunks_with_territory(victim.chunks) .. " of " .. #victim.chunks .. " cleared chunks retaken")
+      H.equal("all-cleared-land-retaken", chunks_with_territory(victim.chunks), #victim.chunks)
+      H.equal("no-cleared-chunks-left", s.cleared_chunk_count, 0)
+      H.equal("chunks-retaken", s.stats.chunks_retaken, #victim.chunks)
+      H.equal("retaking-spawns-no-demolishers", #vulcanus().get_segmented_units(), victim.units)
       H.equal("protected-safe-zone-stays-safe", safe_in_territory(), 0)
       H.check("safe-zone-blocked-expansion", s.stats.expansions_blocked_by_safe_zone > 0,
         s.stats.expansions_blocked_by_safe_zone .. " blocked attempts")
@@ -210,27 +214,48 @@ phases["killed-add"] = {
   init = function()
     local record = setup_record()
     local s = state()
+    local total = 0
     H.check("initialized", s.initialized)
     H.equal("dead-territories-cleared", s.stats.territories_cleared, #record.killed)
     H.equal("no-dead-territories-left", dead_territories(), 0)
     H.equal("territory-count", #vulcanus().get_territories(), record.territory_count - #record.killed)
     for i, killed in ipairs(record.killed) do
       H.equal("killed-" .. i .. "-chunks-free", chunks_with_territory(killed.generated), 0)
+      total = total + #killed.generated + #killed.ungenerated
     end
+    H.equal("dead-territories-marked-cleared", s.cleared_chunk_count, total)
     H.equal("living-demolishers-untouched", #vulcanus().get_segmented_units(), record.unit_count)
   end,
   ticks = function()
-    local ungenerated = {}
+    local all, ungenerated = {}, {}
     H.at(1, function()
       for _, killed in ipairs(setup_record().killed) do
-        for _, c in ipairs(killed.ungenerated) do ungenerated[#ungenerated + 1] = c end
+        for _, c in ipairs(killed.generated) do all[#all + 1] = c end
+        for _, c in ipairs(killed.ungenerated) do
+          all[#all + 1] = c
+          ungenerated[#ungenerated + 1] = c
+        end
       end
-      H.info("ungenerated-cleared-chunks", #ungenerated)
+      H.info("cleared-chunks", #all .. " (" .. #ungenerated .. " ungenerated)")
+    end)
+    H.at(3500, function()
+      local s = state()
+      H.info("stats", s.stats)
+      H.equal("all-cleared-land-retaken", chunks_with_territory(all), #all)
+      H.equal("no-cleared-chunks-left", s.cleared_chunk_count, 0)
+      local still_ungenerated = 0
+      for _, c in ipairs(ungenerated) do
+        if not vulcanus().is_chunk_generated(c) then still_ungenerated = still_ungenerated + 1 end
+      end
+      H.equal("ungenerated-chunks-retaken-unexplored", still_ungenerated, #ungenerated)
       generate(ungenerated)
     end)
-    H.at(2, function()
-      H.equal("cleared-ungenerated-land-does-not-respawn", chunks_with_territory(ungenerated), 0)
-      H.equal("no-new-demolishers", #vulcanus().get_segmented_units(), setup_record().unit_count)
+    H.at(3501, function()
+      local record = setup_record()
+      H.equal("exploring-retaken-land-keeps-territory", chunks_with_territory(ungenerated), #ungenerated)
+      H.equal("no-new-demolishers", #vulcanus().get_segmented_units(), record.unit_count)
+      H.equal("no-new-territories", #vulcanus().get_territories(), record.territory_count - #record.killed)
+      H.equal("no-dead-territories", dead_territories(), 0)
       H.done()
     end)
   end,

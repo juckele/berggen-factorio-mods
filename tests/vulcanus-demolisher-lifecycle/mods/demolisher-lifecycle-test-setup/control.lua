@@ -58,7 +58,7 @@ local function kill_demolishers(surface, count, record)
     end
     local name = unit.prototype.name
     unit.die()
-    -- Vanilla behaviour this mod corrects: the territory outlives its last demolisher.
+    -- Vanilla keeps a territory after its last demolisher dies; the mod relies on knowing this.
     H.check("vanilla-territory-survives-kill-" .. i, territory.valid and #territory.get_segmented_units() == 0,
       name .. " killed, territory valid=" .. tostring(territory.valid))
     record.killed[#record.killed + 1] = { name = name, generated = generated, ungenerated = ungenerated }

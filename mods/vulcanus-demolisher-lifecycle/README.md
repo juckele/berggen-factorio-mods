@@ -9,23 +9,28 @@ goes back to being player-facing text for the mod portal.
 
 - **Setup.** The mod sets itself up whenever Vulcanus exists: in a new game, when Vulcanus is first
   created, or when the mod is added to a save that has already been to Vulcanus.
-- **Dead territories are removed.** In vanilla a territory outlives its last demolisher. The mod
-  removes it a tick after its last demolisher dies, and on setup it removes territories whose
-  demolishers were already killed. Their chunks are set to "no territory" rather than destroyed:
-  `LuaTerritory.destroy()` lets the map generator put a new territory, with a new demolisher, on
-  any of those chunks that get explored later.
+- **Dead territories become cleared land.** In vanilla a territory stays after its last demolisher
+  dies. The mod removes it a tick after its last demolisher dies, and on setup it removes
+  territories whose demolishers were already killed. Their chunks are set to "no territory" rather
+  than destroyed (`LuaTerritory.destroy()` lets the map generator put a new territory, with a new
+  demolisher, on any of those chunks that get explored later), and marked as cleared.
 - **Starting area.** The territory-free starting area is recorded per Vulcanus surface, whether or not
   protection is on. A chunk counts if it is in or next to the map generator's starting-area disc
   (`demolisher_starting_area`) and has no territory once generated.
-- **Expansion.** Every interval, one territory with a living demolisher grows by one chunk into a
-  neighbouring generated chunk that has no territory.
+- **Retaking cleared land.** Every interval, one cleared chunk next to a territory with a living
+  demolisher joins that territory, explored or not. This is the mod's main loop: land the player
+  clears doesn't stay clear. Retaken land never spawns extra demolishers.
+- **Other expansion.** When no cleared chunk borders a living territory, a territory may instead
+  grow into a neighbouring explored chunk without territory. In practice that's only the starting
+  area, so it only happens with protection off.
 - **Settings** (all map settings):
   - *Demolishers cannot expand into the starting area* (on). Turning it on later stops further
     growth without evicting territory that already grew there.
-  - *Seconds between territory expansions* (600, a placeholder until the balance pass).
+  - *Ticks between territory expansions* (10, very fast so testers can watch land being retaken;
+    the balance pass will slow it down).
   - *Debug logging* (off): writes decisions to `factorio-current.log`.
 - **Remote interface** `vulcanus-demolisher-lifecycle` (read-only): `get_state()`,
-  `get_safe_chunks()`, `is_safe_chunk(x, y)`. The headless tests use it, and other mods can too.
+  `get_safe_chunks()`, `is_safe_chunk(x, y)`, `get_cleared_chunks()`, `is_cleared_chunk(x, y)`. The headless tests use it, and other mods can too.
 
 Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-lifecycle).
 
@@ -34,7 +39,11 @@ Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-l
 ### 1. Setup on new and established games
 - [x] New game, Vulcanus created later (`new-game` test).
 - [x] Added to a save that has been to Vulcanus and built there (`established` test).
-- [x] Added to a save where demolishers were killed (`killed` test).
+- [x] Added to a save where demolishers were killed (`killed` test): their land is marked cleared
+      and retaken.
+- [ ] Saves that ran the first 0.2.0 build: land it cleared wasn't marked, so it is never retaken.
+      Only matters for testers' saves; could be fixed by marking territory-free explored chunks
+      outside the safe zone as cleared.
 - [x] Vulcanus created by another mod's `on_init`, which doesn't raise `on_surface_created` for us:
       a once-a-second check picks it up. Not covered by a test yet (in the tests, the setup mod's
       `on_init` runs first).
@@ -46,28 +55,28 @@ Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-l
 - [ ] Multiplayer check (a server run with two clients) before release.
 
 ### 2. Game balance
-- [ ] Expansion rate: the 600 s interval is a placeholder. Decide whether it scales with territory
+- [ ] Retake rate: the 10-tick interval is for testing. Decide whether it scales with territory
       count, demolisher size, time on Vulcanus, or pollution (see 7).
 - [ ] Cap on territory size, and on total territory per surface.
 - [ ] Measure how long a cleared area stays clear at the chosen rate, on a real base.
-- [ ] Performance: expansion samples 8 random territories per attempt; profile on a fully explored
-      Vulcanus with many territories.
+- [ ] Performance: every attempt scans all cleared chunks for ones bordering a living territory.
+      Fine for hundreds of chunks; profile with thousands, and keep a frontier set if needed.
 
 ### 3. Spawn logic that feels coherent
 - [ ] Growth: small demolishers become medium, then big, over time (replace the unit in place,
       keeping its position and body shape).
 - [ ] Young: a territory past some size splits; the new part gets a small demolisher that starts near
       the parent's edge, not somewhere random.
-- [ ] Decide which demolisher size retakes land the player cleared (currently: whichever territory
-      expands into it, and no new unit is created).
+- [ ] Decide which demolisher retakes cleared land (currently: a random cleared chunk next to any
+      living territory, and no new unit is created). Should a large cleared area spawn a young
+      demolisher instead of only being absorbed?
 - [ ] Limits per territory and per surface, so the planet can't fill up.
 
 ### 4. Territory expansion as a real threat
-- [ ] Today the only land without territory is the starting area and cleared territories, so with
-      protection on, expansion means demolishers retaking land the player cleared. Decide whether
-      that is the whole threat or whether territory should also push into land with player
-      buildings outside the starting area.
-- [ ] Expansion should prefer chunks toward the player (buildings, pollution) over random edges.
+- [x] Living territories retake cleared land, explored or not.
+- [ ] Decide whether retaking is the whole threat or whether territory should also push into land
+      with player buildings outside the starting area.
+- [ ] Retaking should prefer chunks toward the player (buildings, pollution) over random cleared edges.
 - [ ] Warn the player: an alert or map marker when territory grows into a chunk with their buildings.
 
 ### 5. The original safe zone stays safe

@@ -8,12 +8,12 @@ data:extend({
   },
   {
     type = "int-setting",
-    name = "demolisher-lifecycle-expansion-interval",
+    name = "demolisher-lifecycle-expansion-interval-ticks",
     setting_type = "runtime-global",
-    -- Placeholder until the balance pass; see the README roadmap.
-    default_value = 600,
+    -- Very fast so testers can watch territory grow back; the balance pass will slow it down.
+    default_value = 10,
     minimum_value = 1,
-    maximum_value = 36000,
+    maximum_value = 216000,
     order = "b",
   },
   {
