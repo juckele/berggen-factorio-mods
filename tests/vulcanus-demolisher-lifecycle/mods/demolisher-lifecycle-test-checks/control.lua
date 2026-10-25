@@ -754,13 +754,12 @@ phases["ping-turret-add"] = {
     H.check("placed-turret", turret ~= nil)
     ping.turret = turret
     ping.start = coil_dist(head, turret.position)
-    local names, all_demolisher = {}, true
-    for _, target in pairs(turret.priority_targets or {}) do
-      names[#names + 1] = target.name
-      if not target.name:find("demolisher") then all_demolisher = false end
+    H.equal("no-priority-list-by-default", #(turret.priority_targets or {}), 0)
+    H.check("shoots-any-target-by-default", not turret.ignore_unprioritised_targets)
+    for _, head in pairs({ "small-demolisher", "medium-demolisher", "big-demolisher" }) do
+      local p = prototypes.entity[head]
+      H.check("head-pickable-" .. head, p and not p.hidden and p.subgroup.name == "enemies")
     end
-    H.check("priority-list-set", #names > 0 and all_demolisher, #names .. " targets: " .. table.concat(names, ", "))
-    H.check("ignores-other-targets", turret.ignore_unprioritised_targets)
     turret.insert({ name = "demolisher-ping-shell", count = 10 })
     H.info("start", string.format("turret %.0f tiles from the demolisher's head", ping.start))
     local tech = game.forces.player.technologies["demolisher-ping-turret"]
@@ -807,6 +806,50 @@ phases["ping-turret-add"] = {
       end
     end
     for offset = 30, 3000, 30 do H.at(offset, poll) end
+  end,
+}
+
+-- ping-turret-filter: priority targets by head size. Listing only big demolishers (none nearby)
+-- keeps it quiet; listing small demolishers makes it ping one.
+local pf = {}
+phases["ping-turret-filter-add"] = {
+  tuning = {
+    expansion_enabled = false, growth_enabled = false, nest_enabled = false, hatch_enabled = false,
+    vibration_check_interval = 1000000,
+  },
+  init = function()
+    local surface = vulcanus()
+    local small
+    for _, unit in pairs(surface.get_segmented_units()) do
+      if unit.prototype.name == "small-demolisher" then small = small or unit end
+    end
+    local head = small.get_body_nodes()[1]
+    local spot = surface.find_non_colliding_position("demolisher-ping-turret", { head.x + 70, head.y }, 20, 1)
+    pf.turret = surface.create_entity({ name = "demolisher-ping-turret", position = spot, force = "player", raise_built = true })
+    pf.turret.set_priority_target(1, "big-demolisher")
+    pf.turret.ignore_unprioritised_targets = true
+    pf.turret.insert({ name = "demolisher-ping-shell", count = 10 })
+    pf.hits = {}
+  end,
+  ticks = function()
+    script.on_event(defines.events.on_segmented_unit_damaged, function(event)
+      if event.cause and event.cause.unit_number == pf.turret.unit_number then
+        local name = event.segmented_unit.prototype.name
+        pf.hits[name] = (pf.hits[name] or 0) + 1
+      end
+    end)
+    H.at(2400, function()
+      H.equal("big-only-filter-stays-quiet", table_size(pf.hits), 0)
+      H.equal("no-shells-used-while-filtered-out", pf.turret.get_item_count("demolisher-ping-shell"), 10)
+      pf.turret.set_priority_target(1, "small-demolisher")
+    end)
+    H.at(4800, function()
+      local others = 0
+      for name, n in pairs(pf.hits) do if name ~= "small-demolisher" then others = others + n end end
+      H.check("small-filter-pings-small", (pf.hits["small-demolisher"] or 0) > 0, serpent.line(pf.hits))
+      H.equal("small-filter-pings-nothing-else", others, 0)
+      H.done()
+    end)
   end,
 }
 

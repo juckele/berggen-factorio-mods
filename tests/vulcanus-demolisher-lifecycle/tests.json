@@ -253,6 +253,26 @@
       ]
     },
     {
+      "name": "ping-turret-filter",
+      "description": "Filtering by demolisher head: with only big demolishers in its priority list (and ignoring others) the turret holds fire; switched to small demolishers, it pings only small ones.",
+      "steps": [
+        {
+          "phase": "established-setup",
+          "fixture": "established-start",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 12, "build": true },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        {
+          "phase": "ping-turret-filter-add",
+          "benchmark": 4900,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    },
+    {
       "name": "killed",
       "description": "Demolishers killed before the mod is added: their territories are removed and marked cleared, living neighbours retake the land (explored or not) at the default rate, and exploring it spawns nothing.",
       "steps": [

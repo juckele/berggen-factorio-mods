@@ -22,8 +22,8 @@ Version: 0.2.0
     - Expansion, growth, nesting and hatching each follow the map's enemy expansion settings and evolution.
     - Warns in chat when enemy expansion is turned off in the map settings, which the mod needs.
     - Ping turret (after metallurgic science): very long range, very slow, and barely damaging; it lures
-      demolishers to your defences. Targets only demolishers by default; change its priority targets to choose
-      which. Uses cheap ping shells.
+      demolishers to your defences. To ping only some sizes, add those demolishers to its priority targets and
+      ignore other targets. Uses cheap ping shells.
     - In no-enemies mode the mod does nothing and says so in chat, instead of removing every (empty) territory.
     - New Vulcanus pollution layer, vibration: mining drills, pumps and offshore pumps make it, lava absorbs it
       quickly and volcanic rock steadily. It raises evolution on Vulcanus, and a demolisher investigates the loudest

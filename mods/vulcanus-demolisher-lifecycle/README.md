@@ -181,8 +181,10 @@ Starting version:
       (tinted orange), firing a cannon-shell projectile with the tank cannon's sound. Range 96
       (past a demolisher's vision), one shot every 15 s, 15 s for a full turn, 20 physical damage
       per hit (10 after a head's resistance).
-- [x] Built with a priority-target list of every demolisher part (63 prototypes) and set to ignore
-      anything else; players change the list in the turret's GUI to choose sizes.
+- [x] Built with no priority list, like vanilla turrets. To ping only some sizes, add the size's
+      head (small/medium/big demolisher, all in the picker's enemies group) to its priority targets
+      and set it to ignore other targets; the head entry covers the whole demolisher
+      (`ping-turret-filter` test). The segments are hidden prototypes and aren't needed.
 - [x] *Ping shell* ammo: 2 iron plate + 1 calcite → 2 shells.
 - [x] Recipe: 1 gun turret, 10 tungsten plate, 10 steel plate. Technology *Ping turret* after
       metallurgic science pack (automation, logistic, chemical, space, metallurgic; 300 × 30 s).
@@ -193,8 +195,8 @@ Open:
 - [ ] Look at it in game: the tinted gun turret and the tinted icons are untested visually (headless
       has no graphics). A bigger or different body (rocket turret or artillery parts) may read
       better as a cannon.
-- [ ] Balance: range, damage, cooldown, turn speed, costs; whether a 63-entry priority list is
-      friendly to edit, or whether per-size filters should be simpler (e.g. only the three heads).
+- [ ] Check in game that the three heads show in the turret's priority-target picker.
+- [ ] Balance: range, damage, cooldown, turn speed, costs.
 - [ ] Circuit control of the target list.
 
 ### 7. Pollution (vibration)
