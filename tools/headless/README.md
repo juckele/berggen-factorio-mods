@@ -84,7 +84,8 @@ Step actions:
   automatically, and the runner says to commit it; `--refresh-fixtures` forces a rebuild. Worth it
   for slow setup (generating a planet, ~10 s); not for a plain `--create` (~5 s, about the same as
   loading a save). Fixture steps should not include the mod under test, so mod changes don't
-  invalidate them.
+  invalidate them, and they ignore scenario-level `settings` (only the step's own apply), so
+  scenarios with different settings can share one fixture by repeating the same step.
 - `benchmark`: `--benchmark` the scenario's save for N ticks. Fast, but **changes are not saved**:
   every later step starts again from the last saved state.
 - `server`: start a server on the save, run RCON actions (`wait` N ticks, `lua` with an optional

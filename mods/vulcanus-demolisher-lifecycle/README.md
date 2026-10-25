@@ -55,22 +55,39 @@ Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-l
 - [ ] Multiplayer check (a server run with two clients) before release.
 
 ### 2. Game balance
-- [ ] Retake rate: the 10-tick interval is for testing. Decide whether it scales with territory
-      count, demolisher size, time on Vulcanus, or pollution (see 7).
-- [ ] Cap on territory size, and on total territory per surface.
+- [ ] Calibrate expansion and splitting from the game's map settings (`map_settings.enemy_expansion`:
+      enabled, cooldowns), so a map's enemy expansion settings also set how aggressive
+      demolishers are. The tick setting stays as a test override.
+- [ ] Retake rate: the 10-tick interval is for testing.
 - [ ] Measure how long a cleared area stays clear at the chosen rate, on a real base.
 - [ ] Performance: every attempt scans all cleared chunks for ones bordering a living territory.
       Fine for hundreds of chunks; profile with thousands, and keep a frontier set if needed.
 
 ### 3. Spawn logic that feels coherent
-- [ ] Growth: small demolishers become medium, then big, over time (replace the unit in place,
-      keeping its position and body shape).
-- [ ] Young: a territory past some size splits; the new part gets a small demolisher that starts near
-      the parent's edge, not somewhere random.
-- [ ] Decide which demolisher retakes cleared land (currently: a random cleared chunk next to any
-      living territory, and no new unit is created). Should a large cleared area spawn a young
-      demolisher instead of only being absorbed?
-- [ ] Limits per territory and per surface, so the planet can't fill up.
+Decided:
+- One demolisher per territory, always. A new demolisher means a new territory, and a territory
+  without a demolisher becomes cleared land. Explored land is finite, so the population is bounded
+  without extra limits.
+- Expansion is global per surface, like biter and pentapod expansion: the rate doesn't scale with
+  explored area or territory count.
+
+Candidate mechanics (brainstorm, not yet chosen):
+- [ ] Growth by territory size: a territory above a size threshold has a chance (sigmoid-like
+      curve) to upgrade its demolisher small → medium → big. Retaking cleared land then makes
+      neighbours stronger, which punishes leaving a gap open.
+- [ ] Bifurcation: a demolisher splits into 2+ small demolishers, and its territory is partitioned
+      between them.
+- [ ] Births in gaps: cleared land bordered by two or more living territories gets a new small
+      demolisher and territory, instead of only being absorbed. Probably gives the most
+      interesting emergent shapes.
+- [ ] Budding: a big demolisher's tail breaks off as a small one at the territory edge.
+- [ ] Eggs: a visible, destroyable egg that hatches into a new territory (a target for the ping
+      rifle).
+- [ ] Fragment survives a sloppy kill and keeps the territory.
+- [ ] Spawning from volcanoes or lava, so a fully cleared planet still refills.
+- [ ] Implementation notes: there's no in-place upgrade, so growth creates the new unit with the old
+      body nodes and destroys the old one. `LuaTerritory.regenerate_segmented_units()` spawns the
+      demolisher the map generator would place for a script-made territory (sized by distance).
 
 ### 4. Territory expansion as a real threat
 - [x] Living territories retake cleared land, explored or not.

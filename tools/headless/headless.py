@@ -321,7 +321,9 @@ def run_scenario(spec, scenario, binary, version, work, verbose, refresh_fixture
         results.append(result)
         run_dir = RunDir(scenario_dir / f"run-{index + 1}", binary, version, spec, step["mods"], name, phase,
                          {**scenario.get("params", {}), **step.get("params", {})},
-                         {**settings, **step.get("settings", {})})
+                         # Scenario-level settings are for the mod under test, which a fixture
+                         # step leaves out, so they'd only split one fixture into several.
+                         step.get("settings", {}) if "fixture" in step else {**settings, **step.get("settings", {})})
         log_path = scenario_dir / f"{index + 1}-{phase}.log"
         fixture = None
         if "fixture" in step:

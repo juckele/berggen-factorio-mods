@@ -134,17 +134,13 @@ phases["new-game-run"] = {
 }
 
 ---------------------------------------------------------------------------------------------------
--- unprotected: Vulcanus exists when the mod initializes; protection is off.
+-- unprotected: added to the established save (same fixture) with protection off.
 
-phases["unprotected-create"] = {
+phases["unprotected-add"] = {
   init = function()
-    check_initialized("on-init-with-vulcanus")
+    check_initialized("added-without-protection")
     H.check("protection-off", not settings.global[PROTECT].value)
-    H.done()
   end,
-}
-
-phases["unprotected-run"] = {
   ticks = function()
     H.at(1500, function()
       local s = state()
