@@ -91,6 +91,27 @@
       ]
     },
     {
+      "name": "map-settings",
+      "description": "No interval override: the expansion cooldown follows the map's enemy expansion settings, shortened by evolution with vanilla's formula, and stops when map expansion is off.",
+      "settings": { "demolisher-lifecycle-expansion-interval-ticks": 0 },
+      "steps": [
+        {
+          "phase": "established-setup",
+          "fixture": "established-start",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 12, "build": true },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        {
+          "phase": "map-settings-add",
+          "benchmark": 12700,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    },
+    {
       "name": "killed",
       "description": "Demolishers killed before the mod is added: their territories are removed and marked cleared, living neighbours retake the land (explored or not) at the default rate, and exploring it spawns nothing.",
       "steps": [

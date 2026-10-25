@@ -8,7 +8,10 @@ Version: 0.2.0
     - Territories with a living demolisher retake neighbouring cleared land, one chunk at a time, explored or not.
     - Demolisher territory no longer expands into the starting area (setting, on by default). The starting area
       is recorded even with the setting off.
-    - Territory growth runs on a configurable interval in ticks (10 for now, so testers can watch it).
+    - Expansion is global per surface and follows the map's enemy expansion settings: the cooldown uses the
+      same evolution scaling as biter expansion (scaled to 1/20, since each expansion retakes one chunk), and
+      turning enemy expansion off stops it. A tick override setting (10 for now, so testers can watch it)
+      replaces the map cooldown when above 0.
     - Removed debug chat messages; debug logging is a setting.
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.0

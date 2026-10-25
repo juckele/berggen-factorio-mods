@@ -13,6 +13,7 @@
 --     cleared_chunk_count number of entries in cleared_chunks
 --   storage.pending       territories to re-check after a demolisher died, keyed by chunk "x,y"
 --   storage.last_expansion_tick
+--   storage.next_expansion_tick tick of the next expansion attempt
 --   storage.stats         counters, exposed through the remote interface for tests and other mods
 
 local SURFACE_NAME = "vulcanus"
@@ -20,6 +21,13 @@ local SCHEMA = 2
 
 local SETTING_PROTECT = "demolisher-lifecycle-protect-starting-area"
 local SETTING_INTERVAL = "demolisher-lifecycle-expansion-interval-ticks"
+
+-- Expansion cooldown, from the map's enemy expansion settings with vanilla's evolution scaling:
+--   cooldown = lerp(max, min, -e^2 + 2e) where e is the enemy's evolution on Vulcanus.
+-- Each expansion retakes one chunk, much less than a biter base, so the map's cooldowns are scaled
+-- down. Placeholders until the balance pass: 30 s to 3 min per chunk on default map settings.
+local COOLDOWN_MIN_SCALE = 1 / 20
+local COOLDOWN_MAX_SCALE = 1 / 20
 local SETTING_DEBUG = "demolisher-lifecycle-debug-log"
 
 -- How far from the map origin (in chunks) to look for the starting area. Vulcanus puts its
@@ -45,6 +53,7 @@ local function new_stats()
     expansions = 0,
     chunks_retaken = 0,
     expansions_blocked_by_safe_zone = 0,
+    expansion_attempts = 0,
   }
 end
 
@@ -66,6 +75,17 @@ local function setup_storage()
     v.cleared_chunk_count = 0
   end
   storage.last_expansion_tick = storage.last_expansion_tick or game.tick
+end
+
+local function expansion_cooldown(surface)
+  local override = settings.global[SETTING_INTERVAL].value
+  if override > 0 then return override end
+  local config = game.map_settings.enemy_expansion
+  local e = game.forces.enemy.get_evolution_factor(surface)
+  local t = -e * e + 2 * e
+  local max = config.max_expansion_cooldown * COOLDOWN_MAX_SCALE
+  local min = config.min_expansion_cooldown * COOLDOWN_MIN_SCALE
+  return math.max(1, math.floor(max + (min - max) * t + 0.5))
 end
 
 local function tracked_surface()
@@ -344,6 +364,7 @@ local function initialize_vulcanus(surface)
     cleared_chunk_count = 0,
   }
   storage.last_expansion_tick = game.tick
+  storage.next_expansion_tick = game.tick + expansion_cooldown(surface)
   debug_log("Initialized on " .. surface.name .. " with " .. count .. " safe chunks")
   clear_dead_territories(surface)
 end
@@ -390,12 +411,22 @@ end)
 
 script.on_event(defines.events.on_tick, function(event)
   if next(storage.pending) then process_pending() end
-  if event.tick - storage.last_expansion_tick >= settings.global[SETTING_INTERVAL].value then
-    local surface = tracked_surface()
-    if surface then
+  local surface = tracked_surface()
+  if surface and event.tick >= (storage.next_expansion_tick or 0) then
+    storage.next_expansion_tick = event.tick + expansion_cooldown(surface)
+    -- Like biters, demolishers don't expand when the map has enemy expansion turned off.
+    if game.map_settings.enemy_expansion.enabled then
       storage.last_expansion_tick = event.tick
+      storage.stats.expansion_attempts = storage.stats.expansion_attempts + 1
       try_expand(surface)
     end
+  end
+end)
+
+script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
+  if event.setting == SETTING_INTERVAL then
+    local surface = tracked_surface()
+    if surface then storage.next_expansion_tick = game.tick + expansion_cooldown(surface) end
   end
 end)
 
@@ -428,6 +459,8 @@ remote.add_interface("vulcanus-demolisher-lifecycle", {
       cleared_chunk_count = v and v.cleared_chunk_count or 0,
       pending_checks = table_size(storage.pending or {}),
       last_expansion_tick = storage.last_expansion_tick,
+      next_expansion_tick = storage.next_expansion_tick,
+      expansion_cooldown = tracked_surface() and expansion_cooldown(tracked_surface()) or nil,
       stats = copy(storage.stats or new_stats()),
     }
   end,

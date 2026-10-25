@@ -204,6 +204,50 @@ phases["established-add"] = {
 }
 
 ---------------------------------------------------------------------------------------------------
+-- map-settings: no interval override, so the cooldown comes from the map's enemy expansion settings
+-- (defaults: 10 to 60 minutes) scaled by the mod (1/20) and shortened by evolution like biters.
+
+local MAX_COOLDOWN = 60 * 60 * 60 / 20 -- 10800 ticks at evolution 0
+local MIN_COOLDOWN = 10 * 60 * 60 / 20 -- 1800 ticks at evolution 1
+
+phases["map-settings-add"] = {
+  init = function()
+    local s = state()
+    H.equal("override-off", settings.global["demolisher-lifecycle-expansion-interval-ticks"].value, 0)
+    H.equal("cooldown-at-evolution-0", s.expansion_cooldown, MAX_COOLDOWN)
+    H.equal("first-expansion-scheduled", s.next_expansion_tick, s.initialized_tick + MAX_COOLDOWN)
+  end,
+  ticks = function()
+    local enemy = function() return game.forces.enemy end
+    local first
+    H.at(2, function()
+      enemy().set_evolution_factor(0.5, vulcanus())
+      -- lerp(10800, 1800, -0.25 + 1) = 4050
+      H.equal("cooldown-at-evolution-0.5", state().expansion_cooldown, 4050)
+      enemy().set_evolution_factor(1, vulcanus())
+      H.equal("cooldown-at-evolution-1", state().expansion_cooldown, MIN_COOLDOWN)
+      game.map_settings.enemy_expansion.min_expansion_cooldown = 20 * 60 * 60
+      H.equal("follows-map-min-cooldown", state().expansion_cooldown, 3600)
+      game.map_settings.enemy_expansion.min_expansion_cooldown = 10 * 60 * 60
+      H.equal("no-attempt-before-cooldown", state().stats.expansion_attempts, 0)
+    end)
+    H.at(MAX_COOLDOWN + 2, function()
+      local s = state()
+      H.equal("attempt-after-cooldown", s.stats.expansion_attempts, 1)
+      H.equal("next-uses-current-evolution", s.next_expansion_tick, s.last_expansion_tick + MIN_COOLDOWN)
+      first = s.next_expansion_tick
+      game.map_settings.enemy_expansion.enabled = false
+    end)
+    H.at(MAX_COOLDOWN + MIN_COOLDOWN + 10, function()
+      local s = state()
+      H.equal("no-attempt-with-expansion-disabled", s.stats.expansion_attempts, 1)
+      H.check("still-rescheduled-while-disabled", s.next_expansion_tick > first)
+      H.done()
+    end)
+  end,
+}
+
+---------------------------------------------------------------------------------------------------
 -- killed: demolishers were killed before the mod was added.
 
 phases["killed-add"] = {

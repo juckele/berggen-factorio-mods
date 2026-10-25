@@ -17,7 +17,12 @@ goes back to being player-facing text for the mod portal.
 - **Starting area.** The territory-free starting area is recorded per Vulcanus surface, whether or not
   protection is on. A chunk counts if it is in or next to the map generator's starting-area disc
   (`demolisher_starting_area`) and has no territory once generated.
-- **Retaking cleared land.** Every interval, one cleared chunk next to a territory with a living
+- **Expansion clock.** Expansion is global per surface. With the override at 0, the cooldown
+  between expansions uses vanilla's biter formula on the map's enemy expansion settings,
+  `lerp(max_cooldown, min_cooldown, -e² + 2e)` with `e` the enemy evolution on Vulcanus, scaled
+  by 1/20 because each expansion retakes only one chunk: 3 min at no evolution to 30 s at full
+  evolution on default map settings. Turning enemy expansion off for the map stops it.
+- **Retaking cleared land.** Every expansion, one cleared chunk next to a territory with a living
   demolisher joins that territory, explored or not. This is the mod's main loop: land the player
   clears doesn't stay clear. Retaken land never spawns extra demolishers.
 - **Other expansion.** When no cleared chunk borders a living territory, a territory may instead
@@ -26,8 +31,8 @@ goes back to being player-facing text for the mod portal.
 - **Settings** (all map settings):
   - *Demolishers cannot expand into the starting area* (on). Turning it on later stops further
     growth without evicting territory that already grew there.
-  - *Ticks between territory expansions* (10, very fast so testers can watch land being retaken;
-    the balance pass will slow it down).
+  - *Expansion interval override* (10 ticks, very fast so testers can watch land being retaken).
+    0 uses the map settings (below); release will default to 0.
   - *Debug logging* (off): writes decisions to `factorio-current.log`.
 - **Remote interface** `vulcanus-demolisher-lifecycle` (read-only): `get_state()`,
   `get_safe_chunks()`, `is_safe_chunk(x, y)`, `get_cleared_chunks()`, `is_cleared_chunk(x, y)`. The headless tests use it, and other mods can too.
@@ -55,10 +60,11 @@ Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-l
 - [ ] Multiplayer check (a server run with two clients) before release.
 
 ### 2. Game balance
-- [ ] Calibrate expansion and splitting from the game's map settings (`map_settings.enemy_expansion`:
-      enabled, cooldowns), so a map's enemy expansion settings also set how aggressive
-      demolishers are. The tick setting stays as a test override.
-- [ ] Retake rate: the 10-tick interval is for testing.
+- [x] Expansion follows the map's enemy expansion settings (enabled, min/max cooldown) with
+      vanilla's evolution scaling (`map-settings` test).
+- [ ] Tune the cooldown scale constants (1/20 of the map's cooldowns, one chunk per expansion), and
+      choose constants for splitting and births once those exist.
+- [ ] Switch the override's default to 0 for release.
 - [ ] Measure how long a cleared area stays clear at the chosen rate, on a real base.
 - [ ] Performance: every attempt scans all cleared chunks for ones bordering a living territory.
       Fine for hundreds of chunks; profile with thousands, and keep a frontier set if needed.

@@ -10,9 +10,10 @@ data:extend({
     type = "int-setting",
     name = "demolisher-lifecycle-expansion-interval-ticks",
     setting_type = "runtime-global",
-    -- Very fast so testers can watch territory grow back; the balance pass will slow it down.
+    -- 0 uses the map's enemy expansion settings scaled by evolution. Defaults to very fast so testers
+    -- can watch territory grow back; release will default to 0.
     default_value = 10,
-    minimum_value = 1,
+    minimum_value = 0,
     maximum_value = 216000,
     order = "b",
   },
