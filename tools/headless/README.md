@@ -61,6 +61,7 @@ which executes inside that mod's Lua state and can read its `storage` directly.
     "params": { "anything": true },           // optional; available to test mods as H.params
     "steps": [
       { "phase": "create", "create": { "seed": 12345 }, "mods": ["my-mod", "my-mod-checks"] },
+      { "phase": "setup", "fixture": "my-start", "create": { "seed": 12345 }, "mods": ["my-setup"] },
       { "phase": "run", "benchmark": 600, "mods": [...], "expect_done": true },
       { "phase": "live", "mods": [...], "expect_done": true, "server": { "actions": [
           { "wait": 300 },
@@ -76,6 +77,14 @@ Step actions:
 
 - `create`: `--create` a new map (`seed`, optional `map_gen_settings` / `map_settings` files relative
   to the spec). Only `on_init` runs; this is where setup mods build save state.
+  Add `"fixture": "<name>"` to cache the result as `data/<name>.zip` next to the spec, with
+  `data/<name>.json` holding a hash of everything the save depends on (Factorio version, create
+  options, params, settings, and the files of the step's mods and the harness) plus the step's
+  `TEST` lines, which are replayed when the fixture is reused. A stale or missing fixture is rebuilt
+  automatically, and the runner says to commit it; `--refresh-fixtures` forces a rebuild. Worth it
+  for slow setup (generating a planet, ~10 s); not for a plain `--create` (~5 s, about the same as
+  loading a save). Fixture steps should not include the mod under test, so mod changes don't
+  invalidate them.
 - `benchmark`: `--benchmark` the scenario's save for N ticks. Fast, but **changes are not saved**:
   every later step starts again from the last saved state.
 - `server`: start a server on the save, run RCON actions (`wait` N ticks, `lua` with an optional

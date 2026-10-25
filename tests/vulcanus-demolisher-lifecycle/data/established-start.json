@@ -1,0 +1,10 @@
+{
+  "key": "355db97147445a103547157ef8a5d246f6cdcb0d1230e788b47dc0fadacd6263",
+  "factorio": "2.1.23",
+  "output": [
+    "TEST PASS setup-built-base :: 25 entities placed",
+    "TEST INFO setup-territories :: 15",
+    "TEST INFO setup-demolishers :: 15",
+    "TEST DONE established-setup"
+  ]
+}

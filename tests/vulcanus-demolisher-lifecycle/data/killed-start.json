@@ -1,0 +1,13 @@
+{
+  "key": "c25a8b573e6facaa76be8b3e896514ada5056be35190e67cedc814dc9f104a64",
+  "factorio": "2.1.23",
+  "output": [
+    "TEST PASS vanilla-territory-survives-kill-1 :: small-demolisher killed, territory valid=true",
+    "TEST PASS vanilla-territory-survives-kill-2 :: small-demolisher killed, territory valid=true",
+    "TEST PASS vanilla-territory-survives-kill-3 :: small-demolisher killed, territory valid=true",
+    "TEST PASS setup-killed-count :: expected 3, got 3",
+    "TEST INFO setup-territories :: 15",
+    "TEST INFO setup-demolishers :: 12",
+    "TEST DONE killed-setup"
+  ]
+}

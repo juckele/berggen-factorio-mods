@@ -11,6 +11,7 @@ Python 3.9+, standard library only. See tools/headless/README.md for the spec fo
 """
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -71,6 +72,8 @@ class RunDir:
     def __init__(self, root, binary, version, spec, mods, scenario, phase, params, settings):
         self.root = Path(root)
         self.binary = binary
+        self.params = params or {}
+        self.settings = settings or {}
         self.mods_dir = self.root / "mods"
         self.write_dir = self.root / "write"
         if self.root.exists():
@@ -277,7 +280,29 @@ def load_spec(path):
     return spec
 
 
-def run_scenario(spec, scenario, binary, version, work, verbose):
+def fixture_key(spec, step, version, params, settings):
+    """Everything a create step's save depends on. A fixture is reused only while this matches."""
+    digest = hashlib.sha256()
+    digest.update(json.dumps({
+        "factorio": list(version), "create": step["create"], "mods": step["mods"],
+        "params": params, "settings": settings,
+        "builtin_mods": spec.get("builtin_mods", BUILTIN_MODS),
+    }, sort_keys=True).encode())
+    roots = [spec["_mod_paths"][m] for m in step["mods"]] + [HARNESS_MOD]
+    for name in ("map_gen_settings", "map_settings"):
+        if name in (step["create"] or {}):
+            roots.append(spec["_dir"] / step["create"][name])
+    for root in roots:
+        files = [root] if root.is_file() else sorted(f for f in root.rglob("*") if f.is_file())
+        for f in files:
+            if "__pycache__" in f.parts or f.suffix == ".zip":
+                continue
+            digest.update(str(f.relative_to(root.parent)).encode())
+            digest.update(f.read_bytes())
+    return digest.hexdigest()
+
+
+def run_scenario(spec, scenario, binary, version, work, verbose, refresh_fixtures=False):
     name = scenario["name"]
     scenario_dir = Path(work) / name
     if scenario_dir.exists():
@@ -298,6 +323,20 @@ def run_scenario(spec, scenario, binary, version, work, verbose):
                          {**scenario.get("params", {}), **step.get("params", {})},
                          {**settings, **step.get("settings", {})})
         log_path = scenario_dir / f"{index + 1}-{phase}.log"
+        fixture = None
+        if "fixture" in step:
+            if "create" not in step:
+                sys.exit(f"{name}: step {index + 1} has a fixture but no create action")
+            data_dir = spec["_dir"] / "data"
+            fixture = (data_dir / f"{step['fixture']}.zip", data_dir / f"{step['fixture']}.json")
+            fixture_hash = fixture_key(spec, step, version, run_dir.params, run_dir.settings)
+            meta = json.loads(fixture[1].read_text()) if fixture[1].exists() else {}
+            if not refresh_fixtures and fixture[0].exists() and meta.get("key") == fixture_hash:
+                shutil.copy(fixture[0], save)
+                result.parse("\n".join(meta.get("output", [])))
+                result.infos.append(("fixture", f"reused {fixture[0].relative_to(spec['_dir'])}"))
+                print_step(name, result, log_path, verbose)
+                continue
         if "create" in step:
             args = run_dir.base_args() + ["--create", str(save)]
             create = step["create"] or {}
@@ -320,6 +359,15 @@ def run_scenario(spec, scenario, binary, version, work, verbose):
             result.errors.append(f"Factorio exited with code {code}, see {log_path}")
         if step.get("expect_done") and not result.done:
             result.fails.append(("phase-finished", "the test mod never called H.done()"))
+        if fixture and result.ok:
+            fixture[0].parent.mkdir(exist_ok=True)
+            shutil.copy(save, fixture[0])
+            fixture[1].write_text(json.dumps({
+                "key": fixture_hash, "factorio": ".".join(map(str, version)),
+                "output": [line.strip() for line in output.splitlines() if TEST_LINE.match(line.strip())],
+            }, indent=2) + "\n")
+            result.infos.append(("fixture", f"rebuilt {fixture[0].relative_to(spec['_dir'])}; commit it"))
+            print(f"    rebuilt fixture {fixture[0]} (commit it)")
         print_step(name, result, log_path, verbose)
         if not result.ok:
             break
@@ -375,7 +423,7 @@ def cmd_test(args):
     failures = []
     for scenario in selected:
         print(f"{scenario['name']}: {scenario.get('description', '')}")
-        if not run_scenario(spec, scenario, binary, version, work, args.verbose):
+        if not run_scenario(spec, scenario, binary, version, work, args.verbose, args.refresh_fixtures):
             failures.append(scenario["name"])
     print()
     if failures:
@@ -413,6 +461,7 @@ def main():
     t.add_argument("--scenario", action="append", help="only run this scenario (repeatable)")
     t.add_argument("--work", help="work directory (default: a new temp dir)")
     t.add_argument("-v", "--verbose", action="store_true", help="list passing checks and info lines")
+    t.add_argument("--refresh-fixtures", action="store_true", help="rebuild fixture saves even if up to date")
     i = sub.add_parser("inspect", help="load a save on a server and run Lua over RCON")
     i.add_argument("spec", help="test spec, for mod paths and Factorio version")
     i.add_argument("--save", required=True)

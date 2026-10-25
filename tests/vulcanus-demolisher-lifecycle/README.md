@@ -4,7 +4,7 @@
 tools/headless/headless.py test tests/vulcanus-demolisher-lifecycle/tests.json
 ```
 
-Takes about 2 minutes on Factorio 2.1. Runner docs: [`tools/headless`](../../tools/headless).
+Takes about 70 seconds on Factorio 2.1 (100 seconds when the fixtures need rebuilding). Runner docs: [`tools/headless`](../../tools/headless).
 
 | Scenario | What it covers |
 | --- | --- |
@@ -22,6 +22,11 @@ Takes about 2 minutes on Factorio 2.1. Runner docs: [`tools/headless`](../../too
 - `mods/demolisher-lifecycle-test-checks/`: the checks, one handler per phase name. Reads the mod's
   state through its remote interface `vulcanus-demolisher-lifecycle`.
 
-Saves are generated from the fixed seed on each run, so none are committed. A hand-played save can be
-added as a fixture under `data/` (zips there are exempt from `.gitignore`) and used with a scenario's
-`"save"` key.
+- `data/established-start.zip`, `data/killed-start.zip`: fixture saves from the `established` and
+  `killed` setup steps (Vulcanus generated, base built or demolishers killed, mod not installed), to
+  skip ~14 s of generation each. They depend only on Factorio, the setup mod and the harness, and
+  the runner rebuilds them when any of those change; commit the rebuilt files. Other scenarios
+  create their saves each run.
+
+A hand-played save can be added under `data/` (zips there are exempt from `.gitignore`) and used
+with a scenario's `"save"` key.

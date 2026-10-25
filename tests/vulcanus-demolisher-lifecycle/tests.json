@@ -75,6 +75,7 @@
       "steps": [
         {
           "phase": "established-setup",
+          "fixture": "established-start",
           "create": { "seed": 12345 },
           "params": { "vulcanus_radius": 12, "build": true },
           "mods": ["demolisher-lifecycle-test-setup"],
@@ -94,6 +95,7 @@
       "steps": [
         {
           "phase": "killed-setup",
+          "fixture": "killed-start",
           "create": { "seed": 12345 },
           "params": { "vulcanus_radius": 12, "kill": 3 },
           "mods": ["demolisher-lifecycle-test-setup"],
