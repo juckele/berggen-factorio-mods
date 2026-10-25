@@ -56,6 +56,12 @@ goes back to being player-facing text for the mod portal.
   Each hatch shrinks the parent by one chunk, so repeated hatching eventually takes a parent under
   the nesting minimum. Destroyed eggs are gone for good; the nest marker disappears with its last
   egg. Nest and egg graphics are placeholders (Vulcanus hot rocks).
+- **Tremors.** Vulcanus gets its own pollution layer, *tremors* (vanilla Vulcanus has no pollutant).
+  Mining drills, pumps and offshore pumps emit it while working (burner drill 6/min, electric drill
+  10, big drill 40, pump 3, offshore pump 8; other mods' drills and pumps fall back by type). Lava
+  absorbs it fastest (0.0001 per tile per second, the top vanilla rate) and volcanic ground
+  medium-high (0.00002; grass absorbs pollution at 0.000018). Tremors count toward evolution, which
+  shortens every demolisher event clock. They don't affect demolishers in any other way yet.
 - **Settings** (all map settings):
   - *Demolishers cannot expand into the starting area* (on). Turning it on later stops further
     growth without evicting territory that already grew there.
@@ -152,11 +158,16 @@ Open:
       buildings), ideally settable by circuit network.
 - [ ] Item, recipe, technology, graphics, and balance against the vanilla ways of killing demolishers.
 
-### 7. Pollution
+### 7. Pollution (tremors)
+- [x] Tremors pollution layer on Vulcanus: drills and pumps emit, lava absorbs most, rock
+      medium-high; affects evolution (`tremors` test).
 - [ ] Every event clock divides its cooldown by `pollution_multiplier(surface)` in control.lua,
       which returns 1. Decide what it measures.
-- [ ] Decide the model: territories absorb pollution like spawners and grow faster with it, pollution
-      draws expansion toward the base, or both.
+- [ ] Decide how demolishers interact with tremors (brainstormed 2026-10-25): tremors draw
+      investigation, speed up events locally or globally, steer retaking toward the source, wake
+      sleeping demolishers, are absorbed by territories (spawner-like), and so on.
+- [ ] Should anything besides drills and pumps make tremors (trains, foundries, rocket launches,
+      big machines)? Should quiet alternatives exist (a technology or module that reduces them)?
 - [ ] Make the effect visible to the player (statistics, tooltip, or map overlay).
 - [ ] Balance with 2 (rate) and 4 (direction).
 

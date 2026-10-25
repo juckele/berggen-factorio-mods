@@ -21,6 +21,8 @@ Version: 0.2.0
       there is cleared land next to their parent's territory, otherwise once old. Eggs can be destroyed.
     - Expansion, growth, nesting and hatching each follow the map's enemy expansion settings and evolution.
     - Warns in chat when enemy expansion is turned off in the map settings, which the mod needs.
+    - New Vulcanus pollution layer, tremors: mining drills, pumps and offshore pumps make it, lava absorbs it
+      quickly and volcanic rock steadily. It raises evolution on Vulcanus.
     - Fixed: killing a demolisher whose territory was entirely unexplored left its territory behind.
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.0

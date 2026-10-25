@@ -15,6 +15,7 @@ Takes about 2 minutes on Factorio 2.1. Runner docs: [`tools/headless`](../../too
 | `nests` | Growth respects the distance gate and keeps one demolisher per territory. A big demolisher travels to its territory's centre, coils (body within 12 tiles of the site), lays 4 eggs, and returns to patrol. Eggs: too young doesn't hatch; an old egg with the parent alive takes one parent chunk; after a neighbour is killed, a free-space egg takes the parent chunk bordering the cleared land; a destroyed egg is removed; after the parent dies, its land is retaken except the nest chunk, which the last egg takes; the nest and its reservation then go away. Events are driven with `run_event`. |
 | `nests-natural` | Every event on its own fast clock with low thresholds and a few kills: growth, nests and hatching all happen, every territory has exactly one demolisher, and egg and nest entities match the mod's state. |
 | `nest-interrupt` | Damaging a demolisher while it coils ends the trip without a nest, and it doesn't retry straight away. |
+| `tremors` | Vulcanus tracks tremors (Nauvis still tracks pollution); every drill and pump type emits it and an assembler doesn't; a fuelled burner drill shows up in the tremor statistics; pollution put into an all-lava chunk falls faster than in an all-rock chunk. |
 | `killed` | Save where 3 demolishers were killed before the mod was added. Also checks the vanilla behaviour the mod builds on (a territory stays after its last demolisher dies). On add, the dead territories are removed and marked cleared; at the default rate, neighbours retake all of it, including unexplored chunks, and exploring those afterwards spawns nothing new. |
 
 ## Layout
@@ -28,7 +29,7 @@ Takes about 2 minutes on Factorio 2.1. Runner docs: [`tools/headless`](../../too
   nesting and hatching off unless it sets its own `tuning`, so older checks aren't disturbed.
 
 - `data/established-start.zip`, `data/killed-start.zip`: fixture saves from the setup steps of
-  `established` (also used by `unprotected`, `map-settings` and the nest scenarios) and `killed` (Vulcanus generated, base built or demolishers killed, mod not installed), to
+  `established` (also used by `unprotected`, `map-settings` and the nest and tremors scenarios) and `killed` (Vulcanus generated, base built or demolishers killed, mod not installed), to
   skip ~14 s of generation each. They depend only on Factorio, the setup mod and the harness, and
   the runner rebuilds them when any of those change; commit the rebuilt files. `new-game` creates its
   save each run, since it starts before Vulcanus exists (~5 s).

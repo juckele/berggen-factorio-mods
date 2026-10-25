@@ -546,6 +546,93 @@ phases["nest-interrupt-add"] = {
 }
 
 ---------------------------------------------------------------------------------------------------
+-- tremors: Vulcanus's pollution layer. Prototypes, a working drill emitting it, and lava absorbing
+-- it faster than rock.
+
+local function emits_tremors(name)
+  local p = prototypes.entity[name]
+  local sources = { p.electric_energy_source_prototype, p.burner_prototype, p.void_energy_source_prototype }
+  for _, source in pairs(sources) do
+    if source and source.emissions_per_joule and (source.emissions_per_joule.tremors or 0) > 0 then return true end
+  end
+  return false
+end
+
+-- A chunk that is all lava, or all volcanic rock, near the origin.
+local function find_chunk(surface, want_lava)
+  for r = 2, 12 do
+    for cx = -r, r do
+      for cy = -r, r do
+        if math.max(math.abs(cx), math.abs(cy)) == r and surface.is_chunk_generated({ cx, cy }) then
+          local area = { { cx * 32, cy * 32 }, { cx * 32 + 32, cy * 32 + 32 } }
+          local lava = surface.count_tiles_filtered({ area = area, name = { "lava", "lava-hot" } })
+          if (want_lava and lava == 1024) or (not want_lava and lava == 0) then return { x = cx, y = cy } end
+        end
+      end
+    end
+  end
+end
+
+local tremor_test = {}
+
+phases["tremors-add"] = {
+  init = function()
+    local surface = vulcanus()
+    H.equal("vulcanus-pollutant", surface.pollutant_type and surface.pollutant_type.name, "tremors")
+    H.check("nauvis-unchanged", game.surfaces.nauvis.pollutant_type.name == "pollution")
+    for _, name in pairs({ "burner-mining-drill", "electric-mining-drill", "big-mining-drill", "pump", "offshore-pump" }) do
+      H.check("emits-" .. name, emits_tremors(name))
+    end
+    H.check("assembler-does-not-emit", not emits_tremors("assembling-machine-2"))
+    local lava = prototypes.tile["lava"].absorptions_per_second.tremors or 0
+    local rock = prototypes.tile["volcanic-ash-flats"].absorptions_per_second.tremors or 0
+    H.check("lava-absorbs-most", lava > rock and rock > 0, "lava " .. lava .. ", rock " .. rock)
+
+    -- A burner drill on a resource, fuelled.
+    local ore = surface.find_entities_filtered({ type = "resource", name = { "coal", "calcite" }, position = { 0, 0 }, radius = 400, limit = 50 })
+    for _, resource in pairs(ore) do
+      local p = resource.position
+      if surface.can_place_entity({ name = "burner-mining-drill", position = p, force = "player" }) then
+        local drill = surface.create_entity({ name = "burner-mining-drill", position = p, force = "player" })
+        drill.insert({ name = "coal", count = 50 })
+        tremor_test.drill = drill
+        break
+      end
+    end
+    H.check("placed-drill", tremor_test.drill ~= nil)
+
+    tremor_test.lava_chunk = find_chunk(surface, true)
+    tremor_test.rock_chunk = find_chunk(surface, false)
+    H.check("found-lava-and-rock-chunks", tremor_test.lava_chunk ~= nil and tremor_test.rock_chunk ~= nil)
+  end,
+  ticks = function()
+    H.at(2, function()
+      local surface = vulcanus()
+      for _, key in pairs({ "lava_chunk", "rock_chunk" }) do
+        local c = tremor_test[key]
+        surface.pollute({ c.x * 32 + 16, c.y * 32 + 16 }, 1000)
+        tremor_test[key .. "_start"] = surface.get_pollution({ c.x * 32 + 16, c.y * 32 + 16 })
+      end
+    end)
+    H.at(1800, function()
+      local surface = vulcanus()
+      local stats = game.get_pollution_statistics(surface)
+      local emitted = stats.get_input_count("burner-mining-drill")
+      H.check("drill-emits-tremors", emitted > 0, string.format("%.2f emitted", emitted))
+      local function left(key)
+        local c = tremor_test[key]
+        return surface.get_pollution({ c.x * 32 + 16, c.y * 32 + 16 })
+      end
+      local lava, rock = left("lava_chunk"), left("rock_chunk")
+      H.info("after-30s", string.format("lava chunk %.1f, rock chunk %.1f (from %.0f)", lava, rock, tremor_test.lava_chunk_start))
+      H.check("lava-chunk-absorbs-faster", lava < rock)
+      H.check("rock-absorbs", rock < tremor_test.rock_chunk_start)
+      H.done()
+    end)
+  end,
+}
+
+---------------------------------------------------------------------------------------------------
 -- killed: demolishers were killed before the mod was added.
 
 phases["killed-add"] = {
