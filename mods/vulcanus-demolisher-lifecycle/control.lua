@@ -420,49 +420,45 @@ local function try_expand_into_cleared(surface, protect)
   return true, blocked
 end
 
-local function expansion_targets(surface, territory, protect)
-  local targets, blocked = {}, 0
-  for _, chunk in pairs(territory.get_chunks()) do
-    for _, d in ipairs(NEIGHBOURS) do
-      local n = { x = chunk.x + d[1], y = chunk.y + d[2] }
-      if surface.is_chunk_generated(n) and surface.get_territory_for_chunk(n) == nil then
-        if protect and is_safe_chunk(n) then
-          blocked = blocked + 1
-        else
-          targets[#targets + 1] = n
-        end
-      end
-    end
-  end
-  return targets, blocked
-end
-
--- Plain expansion: into a generated neighbouring chunk without territory that was never marked
--- cleared, which in practice means the starting area, so this only finds targets with protection off.
--- Candidates from every territory are weighed together, so a hole in one territory beats a gap at
--- another's edge.
+-- Plain expansion: into an explored neighbouring chunk without territory that was never marked
+-- cleared. The only such land is the starting area (every other chunk gets a territory from the map
+-- generator or is marked cleared when its territory dies), so this works from the recorded starting
+-- area outward rather than scanning every territory. With protection on it only notes whether a
+-- living territory is pressing on the starting area.
 local function try_expand_free_land(surface, protect)
-  local candidates, blocked_any = {}, false
-  for _, territory in pairs(surface.get_territories()) do
-    if #territory.get_segmented_units() > 0 then
-      local targets, blocked = expansion_targets(surface, territory, protect)
-      if blocked > 0 then blocked_any = true end
-      if #targets > 0 then
-        local geometry = territory_geometry(territory)
-        for _, chunk in ipairs(targets) do
-          candidates[#candidates + 1] = { chunk = chunk, territory = territory, weight = expansion_weight(geometry, chunk) }
+  local v = storage.vulcanus
+  local candidates, blocked, geometry = {}, false, {}
+  for key in pairs(v.safe_chunks) do
+    local x, y = key:match("^(-?%d+),(-?%d+)$")
+    local chunk = { x = tonumber(x), y = tonumber(y) }
+    if surface.get_territory_for_chunk(chunk) == nil then
+      local seen = {}
+      for _, d in ipairs(NEIGHBOURS) do
+        local territory = surface.get_territory_for_chunk({ x = chunk.x + d[1], y = chunk.y + d[2] })
+        if has_living_units(territory) then
+          if protect then
+            blocked = true
+            break
+          end
+          local number = territory.get_segmented_units()[1].unit_number
+          if not seen[number] then
+            seen[number] = true
+            geometry[number] = geometry[number] or territory_geometry(territory)
+            candidates[#candidates + 1] = { chunk = chunk, territory = territory, weight = expansion_weight(geometry[number], chunk) }
+          end
         end
       end
+      if protect and blocked then break end
     end
   end
-  if #candidates == 0 then return false, blocked_any end
+  if #candidates == 0 then return false, blocked end
   local pick = weighted_pick(candidates)
   surface.set_territory_for_chunks({ pick.chunk }, pick.territory)
   pick.territory.regenerate_patrol_path()
   stat("expansions")
   debug_log("Territory expanded into chunk " .. chunk_key(pick.chunk))
   on_chunk_gained(surface, pick.territory, pick.chunk)
-  return true, blocked_any
+  return true, blocked
 end
 
 local function run_expansion(surface)
@@ -555,7 +551,7 @@ local function grow(surface, unit, next_name)
   if not replacement then return false end
   replacement.health = replacement.max_health * unit.health_ratio
   retarget_nests(unit.unit_number, replacement)
-  for _, map in pairs({ storage.retry_after, storage.wreck or {}, storage.last_investigation or {} }) do
+  for _, map in pairs({ storage.retry_after, storage.wreck or {}, storage.last_investigation or {}, storage.native_tier or {} }) do
     map[replacement.unit_number] = map[unit.unit_number]
     map[unit.unit_number] = nil
   end
@@ -574,13 +570,20 @@ local function run_growth(surface)
     table.remove(units, index)
     local tier = tier_of(unit.prototype.name)
     if tier < #tiers and not storage.trips[unit.unit_number] then
-      -- Judged at the territory's centre: the map generator sizes a demolisher by its territory.
-      local limit = native_tier(surface, territory_centre(unit.territory)) + T("growth_tiers_above_native")
       local next_name = tiers[tier + 1]
       local midpoint = T("growth_midpoint")[next_name]
-      if tier + 1 <= limit and midpoint then
-        local _, size = territory_chunk_set(unit.territory)
-        if math.random() < sigmoid((size - midpoint) / T("growth_width")) then
+      if midpoint then
+        -- Judged at the territory's centre: the map generator sizes a demolisher by its territory.
+        -- Cached per demolisher; its territory's centre moves slowly.
+        storage.native_tier = storage.native_tier or {}
+        local native = storage.native_tier[unit.unit_number]
+        local size = #unit.territory.get_chunks()
+        if not native then
+          native = native_tier(surface, territory_centre(unit.territory))
+          storage.native_tier[unit.unit_number] = native
+        end
+        if tier + 1 <= native + T("growth_tiers_above_native")
+          and math.random() < sigmoid((size - midpoint) / T("growth_width")) then
           return grow(surface, unit, next_name)
         end
       end
@@ -1296,6 +1299,13 @@ remote.add_interface("vulcanus-demolisher-lifecycle", {
     tuning.set(values)
     local surface = tracked_surface()
     if surface then schedule_all(surface) end
+  end,
+  -- Testing: clear chunks the way a dead territory is cleared (no territory, marked cleared).
+  clear_chunks = function(chunks)
+    local surface = tracked_surface()
+    if not surface then return end
+    surface.set_territory_for_chunks(chunks, nil)
+    for _, chunk in pairs(chunks) do mark_cleared(chunk) end
   end,
   -- Testing: run one event now ("expansion", "growth", "nest", "hatch" or "vibration"). Returns whether it did
   -- something.

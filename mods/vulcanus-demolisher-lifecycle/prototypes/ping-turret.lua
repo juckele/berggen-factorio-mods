@@ -14,7 +14,10 @@ local function tint(t)
   if t.filename or t.filenames or t.stripes then
     if not t.draw_as_shadow then t.tint = TINT end
   end
-  for _, v in pairs(t) do tint(v) end
+  for k, v in pairs(t) do
+    -- A stripe is part of its layer; the tint goes on the layer.
+    if k ~= "stripes" then tint(v) end
+  end
 end
 
 data:extend({ { type = "ammo-category", name = "demolisher-ping", hidden_in_factoriopedia = true } })

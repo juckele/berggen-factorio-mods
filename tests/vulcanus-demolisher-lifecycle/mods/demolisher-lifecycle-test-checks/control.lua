@@ -856,7 +856,8 @@ phases["ping-turret-filter-add"] = {
   end,
 }
 
--- expansion-weighting: a hole at a territory's centre fills before a gap at its edge.
+-- expansion-weighting: a cleared hole at a territory's centre fills before a cleared gap at its
+-- edge.
 local ew = { hole = 0, edge = 0 }
 phases["expansion-weighting-add"] = {
   init = function()
@@ -883,7 +884,7 @@ phases["expansion-weighting-add"] = {
     end
     H.info("chunks", string.format("hole %.1f, edge %.1f chunks from the centre", nd, fd))
     for _ = 1, 30 do
-      surface.set_territory_for_chunks({ near, far }, nil)
+      remote.call(MOD, "clear_chunks", { near, far })
       local taken
       for _ = 1, 200 do
         run("expansion")

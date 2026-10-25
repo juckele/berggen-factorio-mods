@@ -6,7 +6,7 @@
 local defaults = {
   -- Four global event clocks. Each cooldown uses vanilla's biter expansion formula on the map's
   -- enemy expansion settings, lerp(max_cooldown, min_cooldown, -e^2 + 2e) with e the enemy
-  -- evolution on Vulcanus, times the event's scale, divided by the pollution multiplier.
+  -- evolution on Vulcanus, times the event's scale. Evolution rises with time and vibration.
   -- On default map settings (10 to 60 minutes) a scale of 1/20 is 30 s to 3 min.
   expansion_scale = 1 / 20, -- one chunk of territory expansion
   growth_scale = 1 / 4,     -- one demolisher grows a size

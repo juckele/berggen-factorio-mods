@@ -38,7 +38,7 @@ goes back to being player-facing text for the mod portal.
 - **Holes fill first.** Every candidate chunk, from every territory, is weighted by
   `exp(-3 · d / r)`: d is its distance from the gaining territory's centre, r that territory's
   mean radius. Holes and concave edges fill long before a territory pushes outward
-  (`expansion-weighting` test: the hole won 30 of 30).
+  (`expansion-weighting` test: the hole won 29 of 30).
 - **Expanding over bases.** Territory can grow over player buildings. Vanilla demolishers don't
   react to that (only to buildings placed in their territory, and they sleep with no player near),
   so when a territory gains a chunk with player buildings, the mod sends its demolisher there on
@@ -91,10 +91,28 @@ goes back to being player-facing text for the mod portal.
 - **Remote interface** `vulcanus-demolisher-lifecycle`. Reads: `get_state()`, `get_trips()`,
   `get_nests()`, `get_safe_chunks()`, `is_safe_chunk(x, y)`, `get_cleared_chunks()`,
   `is_cleared_chunk(x, y)`. For testing: `set_tuning{key = value}` overrides `tuning.lua` values,
-  and `run_event(name)` runs one event now. The headless tests use it, and other mods can too.
+  `run_event(name)` runs one event now, and `clear_chunks(chunks)` clears chunks as a kill would. The headless tests use it, and other mods can too.
 
 - **Ping turret.** A very slow, very long-range turret (behind metallurgic science) that pings
   demolishers for light damage so they come for it; see roadmap section 6.
+
+## Testing this build
+
+- **Install:** copy `vulcanus-demolisher-lifecycle_0.2.0.zip` into your Factorio `mods` folder (Factorio
+  2.1 with Space Age). Start a new game or add it to a save; it says nothing in chat unless enemy
+  expansion is off or Vulcanus is in no-enemies mode.
+- **Speed:** *Expansion interval override* (map settings) is 10 ticks, so expansion, growth, nesting
+  and hatching all run about every 10 ticks. Set it to 0 for real map-settings timing, or e.g. 600
+  for one event of each kind every 10 s.
+- **Console** (`/c`, disables achievements), to inspect or speed things up:
+  - `remote.call("vulcanus-demolisher-lifecycle", "get_state")` with `game.print(serpent.line(...))`
+    shows counters, clocks and nest/egg counts; `get_nests()` and `get_trips()` list them.
+  - `remote.call("vulcanus-demolisher-lifecycle", "set_tuning", {nest_min_chunks = 20, egg_min_age = 600})`
+    changes any value in `tuning.lua` for this save.
+  - `remote.call("vulcanus-demolisher-lifecycle", "run_event", "nest")` runs one event now
+    (`expansion`, `growth`, `nest`, `hatch`, `vibration`).
+- **Map:** the *Vibration* overlay shows vibration; eggs are red dots.
+- **Debug logging** (map setting) writes the mod's decisions to `factorio-current.log`.
 
 Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-lifecycle).
 
@@ -135,6 +153,10 @@ Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-l
       hatch weights.
 - [ ] Switch the override's default to 0 for release.
 - [ ] Measure how long a cleared area stays clear at the chosen rate, on a real base.
+- [x] Performance on the test map (seed 12345, 1051 explored chunks, 15 demolishers): about
+      0.24 ms per tick with map-settings timing (0.12 ms without the mod) and about 1.1 ms with the
+      10-tick testing override. Expansion into free land works from the starting area outward and
+      growth caches each demolisher's native size, after both cost about 20 ms per event.
 - [ ] Performance: nesting trips update every tick (at most 2 at once). Growth samples 8
       demolishers, and hatching scans the cleared chunks per nest.
 - [ ] Performance: every attempt scans all cleared chunks for ones bordering a living territory.
