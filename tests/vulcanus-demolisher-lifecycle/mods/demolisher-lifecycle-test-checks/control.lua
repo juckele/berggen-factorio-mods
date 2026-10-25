@@ -737,6 +737,79 @@ phases["no-enemies-add"] = {
   end,
 }
 
+-- ping-turret: a ping turret 80 tiles from a demolisher pings it slowly, and the demolisher comes
+-- after the turret.
+local ping = { hits = 0 }
+phases["ping-turret-add"] = {
+  tuning = {
+    expansion_enabled = false, growth_enabled = false, nest_enabled = false, hatch_enabled = false,
+    vibration_check_interval = 1000000,
+  },
+  init = function()
+    local surface = vulcanus()
+    local unit = surface.get_segmented_units()[1]
+    local head = unit.get_body_nodes()[1]
+    local spot = surface.find_non_colliding_position("demolisher-ping-turret", { head.x + 80, head.y }, 20, 1)
+    local turret = surface.create_entity({ name = "demolisher-ping-turret", position = spot, force = "player", raise_built = true })
+    H.check("placed-turret", turret ~= nil)
+    ping.turret = turret
+    ping.start = coil_dist(head, turret.position)
+    local names, all_demolisher = {}, true
+    for _, target in pairs(turret.priority_targets or {}) do
+      names[#names + 1] = target.name
+      if not target.name:find("demolisher") then all_demolisher = false end
+    end
+    H.check("priority-list-set", #names > 0 and all_demolisher, #names .. " targets: " .. table.concat(names, ", "))
+    H.check("ignores-other-targets", turret.ignore_unprioritised_targets)
+    turret.insert({ name = "demolisher-ping-shell", count = 10 })
+    H.info("start", string.format("turret %.0f tiles from the demolisher's head", ping.start))
+    local tech = game.forces.player.technologies["demolisher-ping-turret"]
+    H.check("tech-needs-metallurgic", tech and tech.prerequisites["metallurgic-science-pack"] ~= nil)
+    H.check("turret-uses-tungsten", prototypes.recipe["demolisher-ping-turret"].ingredients[2].name == "tungsten-plate")
+  end,
+  ticks = function()
+    script.on_event(defines.events.on_segmented_unit_damaged, function(event)
+      -- Follow whichever demolisher the turret picks.
+      if event.cause and event.cause.unit_number == ping.turret.unit_number then
+        if not ping.target then
+          ping.target = event.segmented_unit
+          ping.target_start = coil_dist(event.segmented_unit.get_body_nodes()[1], ping.turret.position)
+          H.info("pinged-demolisher", event.segmented_unit.prototype.name .. string.format(", %.0f tiles away", ping.target_start))
+        end
+        ping.hits = ping.hits + 1
+        ping.first_hit = ping.first_hit or H.phase_tick()
+        ping.damage = event.final_damage_amount
+      end
+    end)
+    local names = {}
+    for k, v in pairs(defines.segmented_unit_ai_state) do names[v] = k end
+    local function poll()
+      if ping.finished then return end
+      local t = H.phase_tick()
+      local ai = ping.target and ping.target.valid and ping.target.get_ai_state()
+      if ai and not ping.lured and (ai.type == defines.segmented_unit_ai_state.enraged_at_target or ai.type == defines.segmented_unit_ai_state.attacking)
+        and ai.target == ping.turret then
+        ping.lured = t
+        H.info("lured", "at phase tick " .. t .. ", state " .. names[ai.type])
+      end
+      if t >= 3000 then
+        ping.finished = true
+        H.check("pinged", ping.first_hit ~= nil and ping.first_hit <= 1900, "first hit at " .. tostring(ping.first_hit))
+        H.check("light-damage", (ping.damage or 0) > 0 and (ping.damage or 0) <= 20, "damage per hit " .. tostring(ping.damage))
+        local used = 10 - ping.turret.get_item_count("demolisher-ping-shell")
+        H.check("fires-slowly", used >= 1 and used <= 3, used .. " shells in 50 s")
+        H.check("demolisher-comes-for-turret", ping.lured ~= nil)
+        local start = ping.target_start or 0
+        local now = (ping.target and ping.target.valid) and coil_dist(ping.target.get_body_nodes()[1], ping.turret.position) or start
+        H.info("distance", string.format("%.0f -> %.0f tiles; turret %s", start, now, ping.turret.valid and ("health " .. ping.turret.health) or "destroyed"))
+        H.check("demolisher-approaches", now < start - 20 or not ping.turret.valid)
+        H.done()
+      end
+    end
+    for offset = 30, 3000, 30 do H.at(offset, poll) end
+  end,
+}
+
 ---------------------------------------------------------------------------------------------------
 -- killed: demolishers were killed before the mod was added.
 

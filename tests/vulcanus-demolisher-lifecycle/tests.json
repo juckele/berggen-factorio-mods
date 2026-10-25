@@ -233,6 +233,26 @@
       ]
     },
     {
+      "name": "ping-turret",
+      "description": "A ping turret 80 tiles from a demolisher targets only demolishers, hits it lightly within a turn and a cooldown, fires about once per 15 s, and the demolisher comes after the turret.",
+      "steps": [
+        {
+          "phase": "established-setup",
+          "fixture": "established-start",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 12, "build": true },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        {
+          "phase": "ping-turret-add",
+          "benchmark": 3100,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    },
+    {
       "name": "killed",
       "description": "Demolishers killed before the mod is added: their territories are removed and marked cleared, living neighbours retake the land (explored or not) at the default rate, and exploring it spawns nothing.",
       "steps": [

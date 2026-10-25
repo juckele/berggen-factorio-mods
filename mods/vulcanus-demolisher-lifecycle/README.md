@@ -82,6 +82,9 @@ goes back to being player-facing text for the mod portal.
   `is_cleared_chunk(x, y)`. For testing: `set_tuning{key = value}` overrides `tuning.lua` values,
   and `run_event(name)` runs one event now. The headless tests use it, and other mods can too.
 
+- **Ping turret.** A very slow, very long-range turret (behind metallurgic science) that pings
+  demolishers for light damage so they come for it; see roadmap section 6.
+
 Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-lifecycle).
 
 ## Compatibility
@@ -169,12 +172,30 @@ Open:
 - [x] The player can't extend the safe zone: it is only the original starting area. Land they
       clear and build on stays open to retaking.
 
-### 6. Ping rifle: automated demolisher handling
-- [ ] Design: does the ping kill demolishers, lure them, or drive them out of an area? Is it a
-      hand-held weapon, a building, or both? Automating suggests a building, like a turret.
-- [ ] Long range, with a target filter (demolisher size, inside or outside territory, near which
-      buildings), ideally settable by circuit network.
-- [ ] Item, recipe, technology, graphics, and balance against the vanilla ways of killing demolishers.
+### 6. Ping turret: automated demolisher handling
+Decided: it lures demolishers by hurting them a little, so they come for the turret and into the
+player's defences. It's a turret, so it can be automated.
+
+Starting version:
+- [x] *Ping turret* (`demolisher-ping-turret`): an ammo turret kitbashed from the gun turret
+      (tinted orange), firing a cannon-shell projectile with the tank cannon's sound. Range 96
+      (past a demolisher's vision), one shot every 15 s, 15 s for a full turn, 20 physical damage
+      per hit (10 after a head's resistance).
+- [x] Built with a priority-target list of every demolisher part (63 prototypes) and set to ignore
+      anything else; players change the list in the turret's GUI to choose sizes.
+- [x] *Ping shell* ammo: 2 iron plate + 1 calcite → 2 shells.
+- [x] Recipe: 1 gun turret, 10 tungsten plate, 10 steel plate. Technology *Ping turret* after
+      metallurgic science pack (automation, logistic, chemical, space, metallurgic; 300 × 30 s).
+- [x] `ping-turret` test: a demolisher 128 tiles away is hit, goes `enraged_at_target` on the
+      turret, and closes to 9 tiles in about 40 s.
+
+Open:
+- [ ] Look at it in game: the tinted gun turret and the tinted icons are untested visually (headless
+      has no graphics). A bigger or different body (rocket turret or artillery parts) may read
+      better as a cannon.
+- [ ] Balance: range, damage, cooldown, turn speed, costs; whether a 63-entry priority list is
+      friendly to edit, or whether per-size filters should be simpler (e.g. only the three heads).
+- [ ] Circuit control of the target list.
 
 ### 7. Pollution (vibration)
 - [x] Vibration pollution layer on Vulcanus: drills and pumps emit, lava absorbs most, rock

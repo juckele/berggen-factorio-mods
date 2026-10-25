@@ -933,6 +933,47 @@ local function run_vibration_check(surface)
 end
 
 ---------------------------------------------------------------------------------------------------
+-- Ping turret: built with a priority list of demolisher parts and set to ignore anything else, so
+-- it only pings demolishers. Players can change the list in the turret's GUI.
+
+local PING_TURRET = "demolisher-ping-turret"
+
+local function demolisher_target_names()
+  local names = {}
+  for name, prototype in pairs(prototypes.entity) do
+    if (prototype.type == "segmented-unit" or prototype.type == "segment") and name:find("demolisher") then
+      names[#names + 1] = name
+    end
+  end
+  table.sort(names)
+  return names
+end
+
+local function setup_ping_turret(entity)
+  if not (entity and entity.valid and entity.name == PING_TURRET) then return end
+  for i, name in ipairs(demolisher_target_names()) do
+    local ok = pcall(entity.set_priority_target, i, name)
+    if not ok then break end -- the list is full
+  end
+  entity.ignore_unprioritised_targets = true
+end
+
+local function on_built(event)
+  setup_ping_turret(event.entity or event.destination)
+end
+
+local BUILT_FILTER = { { filter = "name", name = PING_TURRET } }
+for _, id in pairs({
+  defines.events.on_built_entity,
+  defines.events.on_robot_built_entity,
+  defines.events.on_space_platform_built_entity,
+  defines.events.script_raised_built,
+  defines.events.script_raised_revive,
+}) do
+  script.on_event(id, on_built, BUILT_FILTER)
+end
+
+---------------------------------------------------------------------------------------------------
 -- Lifecycle
 
 local HANDLERS = {
