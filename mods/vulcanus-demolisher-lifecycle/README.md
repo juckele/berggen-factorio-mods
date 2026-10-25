@@ -81,8 +81,12 @@ Candidate mechanics (brainstorm, not yet chosen):
       demolisher and territory, instead of only being absorbed. Probably gives the most
       interesting emergent shapes.
 - [ ] Budding: a big demolisher's tail breaks off as a small one at the territory edge.
-- [ ] Eggs: a visible, destroyable egg that hatches into a new territory (a target for the ping
-      rifle).
+- [ ] Eggs: a visible, destroyable egg laid in a territory (a target for the ping rifle). Hatch
+      triggers considered, possibly combined in this priority order:
+      - when the parent dies: the young inherits the whole territory, so the kill doesn't free land
+        unless the egg is destroyed first;
+      - when cleared land borders the parent's territory: the young claims it;
+      - otherwise, after a long timer: the young takes part of the parent's territory.
 - [ ] Fragment survives a sloppy kill and keeps the territory.
 - [ ] Spawning from volcanoes or lava, so a fully cleared planet still refills.
 - [ ] Implementation notes: there's no in-place upgrade, so growth creates the new unit with the old
