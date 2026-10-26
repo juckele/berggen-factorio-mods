@@ -273,8 +273,8 @@
       ]
     },
     {
-      "name": "hatch-no-split",
-      "description": "A parent territory carved so its nest chunk sits on a one-chunk-wide neck: an old egg hatches into a chunk that leaves the parent in one piece, not the neck.",
+      "name": "hatch-parent-chunk",
+      "description": "A hatchling takes a chunk from the edge of its living parent's territory, never the nest chunk, and never one that splits the parent: tried with the nest on a one-chunk-wide neck and with the nest chunk sticking out of a block.",
       "steps": [
         {
           "phase": "established-setup",
@@ -285,7 +285,7 @@
           "expect_done": true
         },
         {
-          "phase": "hatch-no-split-add",
+          "phase": "hatch-parent-chunk-add",
           "benchmark": 5,
           "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
           "expect_done": true

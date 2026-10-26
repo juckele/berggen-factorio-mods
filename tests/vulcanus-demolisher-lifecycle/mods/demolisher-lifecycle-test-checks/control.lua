@@ -874,8 +874,9 @@ phases["lure-turret-filter-add"] = {
 -- expansion-weighting: a cleared hole at a territory's centre fills before a cleared gap at its
 -- edge.
 local ew = { hole = 0, edge = 0 }
--- hatch-no-split: a parent territory carved so the nest chunk sits on a one-chunk-wide neck
--- (block - W - N - E - block). An old egg must hatch into a chunk that leaves the parent in one piece.
+-- hatch-parent-chunk: with its parent alive, a hatchling takes a chunk from the parent's edge, never
+-- the nest chunk and never one that splits the parent. Two carved shapes: the nest chunk on a
+-- one-chunk-wide neck, and the nest chunk sticking out of a block.
 
 local function connected(chunks)
   local set, start, count = {}, nil, 0
@@ -898,59 +899,90 @@ local function connected(chunks)
   return reached == count
 end
 
-phases["hatch-no-split-add"] = {
+-- Carves a demolisher's territory down to `shape` (offsets from the nest chunk), lays one nest
+-- with one egg at the nest chunk, hatches it, and checks the parent gave one chunk from its edge.
+-- Returns the parent's remaining chunks as a set of "x,y", the nest chunk, or nil if no territory
+-- fits. `skip` lists unit numbers to leave alone.
+local function carve_and_hatch(label, shape, skip)
+  local surface = vulcanus()
+  local unit, nest_chunk
+  for _, u in pairs(surface.get_segmented_units()) do
+    if not skip[u.unit_number] then
+      local owned = {}
+      for _, c in pairs(u.territory.get_chunks()) do owned[c.x .. "," .. c.y] = true end
+      for _, c in pairs(u.territory.get_chunks()) do
+        local fits = true
+        for _, o in ipairs(shape) do
+          local x, y = c.x + o[1], c.y + o[2]
+          if not (owned[x .. "," .. y] and surface.is_chunk_generated({ x, y })) then fits = false; break end
+        end
+        if fits then unit, nest_chunk = u, c; break end
+      end
+      if unit then break end
+    end
+  end
+  H.check(label .. "-found-territory", unit ~= nil)
+  if not unit then return nil end
+  local territory = unit.territory
+  local keep = {}
+  for _, o in ipairs(shape) do keep[(nest_chunk.x + o[1]) .. "," .. (nest_chunk.y + o[2])] = true end
+  local clear = {}
+  for _, c in pairs(territory.get_chunks()) do
+    if not keep[c.x .. "," .. c.y] then clear[#clear + 1] = c end
+  end
+  remote.call(MOD, "clear_chunks", clear)
+  local before = territory.get_chunks()
+  H.equal(label .. "-carved-shape", #before, #shape)
+  H.check(label .. "-nest-laid", remote.call(MOD, "place_nest", unit.unit_number, nest_chunk) ~= nil)
+  H.equal(label .. "-egg-hatches", run("hatch"), 1)
+  local after = territory.get_chunks()
+  H.equal(label .. "-parent-gave-one-chunk", #after, #before - 1)
+  H.check(label .. "-parent-stays-in-one-piece", connected(after))
+  local still, given = {}, nil
+  for _, c in pairs(after) do still[c.x .. "," .. c.y] = true end
+  for _, c in pairs(before) do
+    if not still[c.x .. "," .. c.y] then given = c end
+  end
+  -- The given chunk was on the parent's edge: it had a side outside the parent's territory.
+  local on_edge = false
+  if given then
+    for _, d in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+      if not keep[(given.x + d[1]) .. "," .. (given.y + d[2])] then on_edge = true end
+    end
+  end
+  H.check(label .. "-given-chunk-on-edge", on_edge)
+  H.check(label .. "-nest-chunk-kept", still[nest_chunk.x .. "," .. nest_chunk.y] == true)
+  skip[unit.unit_number] = true
+  return still, nest_chunk
+end
+
+phases["hatch-parent-chunk-add"] = {
   tuning = {
     expansion_enabled = false, growth_enabled = false, nest_enabled = false, hatch_enabled = false,
     eggs_min = 1, eggs_max = 1, egg_min_age = 0, egg_old_age = 0,
   },
   init = function()
-    local surface = vulcanus()
-    -- Shape relative to the nest chunk: neck W, N, E and a 2x2 block at each end.
-    local shape = { { -1, 0 }, { 0, 0 }, { 1, 0 } }
+    local skip = {}
+    -- Neck: block - W - N - E - block, the nest chunk N in the middle of a one-chunk-wide neck.
+    local neck = { { -1, 0 }, { 0, 0 }, { 1, 0 } }
     for _, x in ipairs({ -3, -2, 2, 3 }) do
-      for _, y in ipairs({ 0, 1 }) do shape[#shape + 1] = { x, y } end
+      for _, y in ipairs({ 0, 1 }) do neck[#neck + 1] = { x, y } end
     end
-    local unit, nest_chunk, territory
-    for _, u in pairs(surface.get_segmented_units()) do
-      local chunks = u.territory.get_chunks()
-      if #chunks >= 30 then
-        local nc = remote.call(MOD, "place_nest", u.unit_number)
-        if nc then
-          local owned = {}
-          for _, c in pairs(chunks) do owned[c.x .. "," .. c.y] = true end
-          local fits = true
-          for _, o in ipairs(shape) do
-            local x, y = nc.x + o[1], nc.y + o[2]
-            if not (owned[x .. "," .. y] and surface.is_chunk_generated({ x, y })) then fits = false end
-          end
-          if fits then unit, nest_chunk, territory = u, nc, u.territory; break end
-        end
+    local still, n = carve_and_hatch("neck", neck, skip)
+    if still then
+      local kept = true
+      for _, o in ipairs({ { -1, 0 }, { 1, 0 } }) do
+        if not still[(n.x + o[1]) .. "," .. (n.y + o[2])] then kept = false end
       end
+      H.check("neck-not-taken", kept)
     end
-    H.check("found-territory", unit ~= nil)
-    if not unit then H.done(); return end
-    local keep = {}
-    for _, o in ipairs(shape) do keep[(nest_chunk.x + o[1]) .. "," .. (nest_chunk.y + o[2])] = true end
-    local clear = {}
-    for _, c in pairs(territory.get_chunks()) do
-      if not keep[c.x .. "," .. c.y] then clear[#clear + 1] = c end
+    -- Edge: the nest chunk N sticks out of a 2x3 block, nearest the nest and taking it would split
+    -- nothing; the hatchling must still take a block chunk.
+    local edge = { { 0, 0 } }
+    for _, x in ipairs({ 1, 2 }) do
+      for _, y in ipairs({ -1, 0, 1 }) do edge[#edge + 1] = { x, y } end
     end
-    remote.call(MOD, "clear_chunks", clear)
-    local before = #territory.get_chunks()
-    H.equal("carved-shape", before, #shape)
-    H.check("carved-shape-connected", connected(territory.get_chunks()))
-    local hatched = run("hatch")
-    H.equal("egg-hatches", hatched, 1)
-    local after = territory.get_chunks()
-    H.equal("parent-gave-one-chunk", #after, before - 1)
-    H.check("parent-stays-in-one-piece", connected(after))
-    local still = {}
-    for _, c in pairs(after) do still[c.x .. "," .. c.y] = true end
-    local neck_kept = true
-    for _, o in ipairs({ { -1, 0 }, { 0, 0 }, { 1, 0 } }) do
-      if not still[(nest_chunk.x + o[1]) .. "," .. (nest_chunk.y + o[2])] then neck_kept = false end
-    end
-    H.check("neck-not-taken", neck_kept)
+    carve_and_hatch("edge", edge, skip)
     index_ok("index-consistent")
     H.done()
   end,

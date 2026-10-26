@@ -852,15 +852,19 @@ end
 --   parent dead                          -> hatchling takes the nest chunk (highest weight)
 --   cleared land next to parent's land   -> hatchling takes the parent chunk next to it
 --   egg old and nowhere better to go     -> hatchling takes a parent chunk on the edge (lowest)
+-- With the parent alive the chunk always comes from the parent's edge, never a nest chunk.
 -- The hatchling's territory is that one chunk; it grows from there like any other. A parent chunk
 -- is only taken if the parent's territory stays in one piece without it.
 
--- The parent chunk nearest the nest that is explored and can be given away without splitting the
--- parent's territory in two.
+-- The parent edge chunk nearest the nest that is explored, isn't a nest chunk (this nest's or
+-- another's), and can be given away without splitting the parent's territory in two.
 local function nearest_takeable(surface, tid, chunks, position)
+  local reserved = storage.vulcanus.reserved
   local ranked = {}
   for _, c in pairs(chunks) do
-    ranked[#ranked + 1] = { c = c, d = dist(chunk_centre(c), position) }
+    if not reserved[chunk_key(c)] then
+      ranked[#ranked + 1] = { c = c, d = dist(chunk_centre(c), position) }
+    end
   end
   table.sort(ranked, function(a, b) return a.d < b.d end)
   for _, entry in ipairs(ranked) do
@@ -1674,14 +1678,22 @@ remote.add_interface("vulcanus-demolisher-lifecycle", {
     local surface = tracked_surface()
     if surface then schedule_all(surface) end
   end,
-  -- Testing: lay a nest for a demolisher now, at its territory's centre, without the trip. Returns
-  -- the nest chunk, or nil.
-  place_nest = function(unit_number)
+  -- Testing: lay a nest for a demolisher now, without the trip: at its territory's centre, or in
+  -- the given chunk of its territory. Returns the nest chunk, or nil.
+  place_nest = function(unit_number, in_chunk)
     local surface = tracked_surface()
     local tid = index.tid_of_unit(unit_number)
     local t = tid and index.get(tid)
     if not (surface and index.alive(t)) then return nil end
-    local site, chunk = nest_site(surface, t)
+    local site, chunk
+    if in_chunk then
+      if index.owner_at(in_chunk.x, in_chunk.y) ~= tid then return nil end
+      chunk = { x = in_chunk.x, y = in_chunk.y }
+      local centre = chunk_centre(chunk)
+      site = surface.find_non_colliding_position("demolisher-egg", centre, 12, 1) or centre
+    else
+      site, chunk = nest_site(surface, t)
+    end
     if not site then return nil end
     lay_nest(surface, { unit = t.unit, unit_number = unit_number, tid = tid, site = site, chunk = chunk })
     return chunk
