@@ -1,6 +1,6 @@
 The graphics in this mod are adapted from Factorio's own graphics, which are copyrighted
-by Wube Software Ltd. They are recoloured and combined from the Space Age stack inserter
-and the Factorio 1.1 filter inserter, in several colours (graphics/<colour>/).
+by Wube Software Ltd. They are recolored and combined from the Space Age stack inserter
+and the Factorio 1.1 filter inserter, in several colors (graphics/<color>/).
 
 They are included under the Factorio Terms of Service
 (https://factorio.com/terms-of-service), which permit works derived from Factorio assets
@@ -8,8 +8,8 @@ to be included and distributed as part of a mod. Wube Software Ltd. retains all 
 these assets and the work derived from them. They are not covered by this mod's MIT
 license (LICENSE.md) and may not be reused outside Factorio mods except as those terms allow.
 
-The long-handed stack inserter recolours (graphics/*/entity/long-stack-inserter-*.png and
-graphics/*/icons/long-stack-inserter*.png) are recoloured from the graphics of snouz's
+The long-handed stack inserter recolors (graphics/*/entity/long-stack-inserter-*.png and
+graphics/*/icons/long-stack-inserter*.png) are recolored from the graphics of snouz's
 Long Stack Inserter mod (https://mods.factorio.com/mod/long_stack_inserter, MIT
 license), which are themselves adapted from Factorio's graphics.
 

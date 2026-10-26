@@ -1,4 +1,4 @@
-local colours = {"automatic", "purple", "aqua", "magenta", "black"}
+local colors = {"automatic", "purple", "aqua", "magenta", "black"}
 local lsi = mods["long_stack_inserter"] ~= nil
 
 data:extend({
@@ -12,10 +12,10 @@ data:extend({
   },
   {
     type = "string-setting",
-    name = "anti-jam-stack-inserter-colour",
+    name = "anti-jam-stack-inserter-color",
     setting_type = "startup",
     default_value = "automatic",
-    allowed_values = colours,
+    allowed_values = colors,
     order = "b-a",
   },
   {
@@ -42,10 +42,10 @@ if mods["long_stack_inserter"] then
   data:extend({
     {
       type = "string-setting",
-      name = "anti-jam-stack-inserter-long-colour",
+      name = "anti-jam-stack-inserter-long-color",
       setting_type = "startup",
       default_value = "automatic",
-      allowed_values = colours,
+      allowed_values = colors,
       order = "c-a",
     },
     {
@@ -57,10 +57,10 @@ if mods["long_stack_inserter"] then
     },
     {
       type = "string-setting",
-      name = "anti-jam-stack-inserter-lsi-colour",
+      name = "anti-jam-stack-inserter-lsi-color",
       setting_type = "startup",
       default_value = "automatic",
-      allowed_values = colours,
+      allowed_values = colors,
       order = "d-a",
     },
     {
@@ -75,7 +75,7 @@ end
 
 -- Descriptions that mention the Long Stack Inserter mod are only used when it's installed.
 if lsi then
-  for _, name in pairs({"anti-jam-stack-inserter-mode", "anti-jam-stack-inserter-colour", "anti-jam-stack-inserter-yellow-hand"}) do
+  for _, name in pairs({"anti-jam-stack-inserter-mode", "anti-jam-stack-inserter-color", "anti-jam-stack-inserter-yellow-hand"}) do
     local setting = data.raw["string-setting"][name] or data.raw["bool-setting"][name]
     setting.localised_description = {"mod-setting-description-long-handed." .. name}
   end

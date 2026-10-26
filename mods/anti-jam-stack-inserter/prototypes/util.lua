@@ -30,7 +30,7 @@ local function icon_layers(prototype)
   return {{icon = prototype.icon, icon_size = prototype.icon_size}}
 end
 
--- Icon layers for a prototype with either `icon` or `icons`, recoloured the same way.
+-- Icon layers for a prototype with either `icon` or `icons`, recolored the same way.
 function lib.recolored_icons(prototype, map, tint)
   local icons = icon_layers(prototype)
   for _, layer in pairs(icons) do

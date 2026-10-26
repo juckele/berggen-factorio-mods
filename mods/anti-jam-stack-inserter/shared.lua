@@ -12,17 +12,17 @@ shared.lsi_mod = "long_stack_inserter"
 --   crafted-upgrade           its own item, crafted from the base inserter + selector
 --                             combinator + processing unit
 shared.mode_setting = "anti-jam-stack-inserter-mode"
-shared.colour_settings = {
-  ["anti-jam-stack-inserter"] = "anti-jam-stack-inserter-colour",
-  ["long-anti-jam-stack-inserter"] = "anti-jam-stack-inserter-long-colour",
-  ["long-stack-inserter"] = "anti-jam-stack-inserter-lsi-colour",
+shared.color_settings = {
+  ["anti-jam-stack-inserter"] = "anti-jam-stack-inserter-color",
+  ["long-anti-jam-stack-inserter"] = "anti-jam-stack-inserter-long-color",
+  ["long-stack-inserter"] = "anti-jam-stack-inserter-lsi-color",
 }
 shared.yellow_settings = {
   ["anti-jam-stack-inserter"] = "anti-jam-stack-inserter-yellow-hand",
   ["long-anti-jam-stack-inserter"] = "anti-jam-stack-inserter-long-yellow-hand",
   ["long-stack-inserter"] = "anti-jam-stack-inserter-lsi-yellow-hand",
 }
-shared.colours = {"purple", "aqua", "magenta", "black"}
+shared.colors = {"purple", "aqua", "magenta", "black"}
 
 -- Fallback tints, used on sprites another mod has replaced (multiplied into them).
 shared.tints = {
@@ -53,14 +53,14 @@ if mods[shared.lsi_mod] then
   table.insert(shared.variants, variant("long-anti-jam-stack-inserter", "long-stack-inserter", true))
 end
 
--- Resolves a colour setting. "automatic" means:
+-- Resolves a color setting. "automatic" means:
 --   anti-jam stack inserter: black if the Long Stack Inserter mod is installed (its
 --     purple is taken), otherwise purple
 --   long-handed anti-jam stack inserter: aqua
 --   long-handed stack inserter: nil (its own graphics, unchanged)
 -- For the long-handed stack inserter, "purple" also means its own graphics.
-function shared.colour(name)
-  local setting = settings.startup[shared.colour_settings[name]]
+function shared.color(name)
+  local setting = settings.startup[shared.color_settings[name]]
   local value = setting and setting.value or "automatic"
   if name == "long-stack-inserter" then
     if value == "automatic" or value == "purple" then return nil end
@@ -72,7 +72,7 @@ function shared.colour(name)
 end
 
 -- Resolves a "yellow hand" setting: keep the vanilla yellow claw (the long-handed stack
--- inserter's style) instead of recolouring it. Defaults to on when the Long Stack Inserter
+-- inserter's style) instead of recoloring it. Defaults to on when the Long Stack Inserter
 -- mod is installed, otherwise off.
 function shared.yellow(name)
   local setting = settings.startup[shared.yellow_settings[name]]
@@ -88,9 +88,9 @@ local LSI_ARM = LSI .. "entity/long-stack-inserter/long-stack-inserter-hand-base
 local LSI_ICON = LSI .. "icons/long-stack-inserter.png"
 
 -- Maps the base inserter's graphics files to our files. With a yellow hand the claw (and
--- the remnants, whose only colour is the claw trim) stay vanilla.
--- For the long-handed stack inserter, `colour` nil means its own colours.
-function shared.graphics(name, colour, yellow)
+-- the remnants, whose only color is the claw trim) stay vanilla.
+-- For the long-handed stack inserter, `color` nil means its own colors.
+function shared.graphics(name, color, yellow)
   local map = {}
   local function hands(c)
     map[SA_HAND_OPEN] = G .. c .. "/entity/anti-jam-stack-inserter-hand-open.png"
@@ -98,21 +98,21 @@ function shared.graphics(name, colour, yellow)
   end
   local suffix = yellow and "-yellow" or ""
   if name == "long-stack-inserter" then
-    if colour then
-      local C = G .. colour .. "/"
+    if color then
+      local C = G .. color .. "/"
       map[LSI_PLATFORM] = C .. "entity/long-stack-inserter-platform.png"
       map[LSI_ARM] = C .. "entity/long-stack-inserter-hand-base.png"
       map[LSI_ICON] = C .. "icons/long-stack-inserter.png"
     end
     if not yellow then
-      hands(colour or "purple")
-      map[LSI_ICON] = G .. (colour or "purple") .. "/icons/long-stack-inserter-full.png"
+      hands(color or "purple")
+      map[LSI_ICON] = G .. (color or "purple") .. "/icons/long-stack-inserter-full.png"
     end
     return map
   end
-  local C = G .. colour .. "/"
+  local C = G .. color .. "/"
   if not yellow then
-    hands(colour)
+    hands(color)
     map[SA_REMNANTS] = C .. "entity/anti-jam-stack-inserter-remnants.png"
   end
   if name == "anti-jam-stack-inserter" then
@@ -128,8 +128,8 @@ function shared.graphics(name, colour, yellow)
 end
 
 -- Pre-drawn conversion icons, used when the stack inserter still has its vanilla icon.
-function shared.conversion_icon_files(colour, yellow)
-  local C = G .. colour .. "/icons/"
+function shared.conversion_icon_files(color, yellow)
+  local C = G .. color .. "/icons/"
   local suffix = yellow and "-yellow" or ""
   return {
     to_variant = C .. "anti-jam-stack-inserter-from-stack-inserter" .. suffix .. ".png",

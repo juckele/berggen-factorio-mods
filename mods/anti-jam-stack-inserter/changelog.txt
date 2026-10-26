@@ -9,11 +9,11 @@ Date: 2026-10-26
       or downgrade.
     - Compatiblity with the Long Stack Inserter mod: adds a long-handed anti-jam stack inserter as well.
       - Adds color settings for anti-jam stack inserters (default purple without the Long Stack Inserter
-        mod, default black with both mods installed), long-handed stack inserter (default purple), and 
+        mod, default black with both mods installed), long-handed stack inserter (default purple), and
         long-handed anti-jam stack inserter (default aqua).
-      - "Yellow hand" settings: keep the stack inserter's yellow hand and only recolour the platform and
+      - "Yellow hand" settings: keep the stack inserter's yellow hand and only recolor the platform and
         arm, like the in the Long Stack Inserter mod. On by default for every stack inserter when both mod
-        are present; off (full recolour) otherwise.
+        are present; off (full recolor) otherwise.
   Changes:
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.1

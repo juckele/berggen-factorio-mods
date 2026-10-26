@@ -10,9 +10,9 @@ local function make_variant(v)
   local base_entity = data.raw.inserter[v.base]
   local base_item = data.raw.item[v.base]
   if not (base_entity and base_item) then return end
-  local colour = shared.colour(v.name)
-  local map = shared.graphics(v.name, colour, shared.yellow(v.name))
-  local tint = shared.tints[colour]
+  local color = shared.color(v.name)
+  local map = shared.graphics(v.name, color, shared.yellow(v.name))
+  local tint = shared.tints[color]
 
   local entity = table.deepcopy(base_entity)
   entity.name = v.name
@@ -38,7 +38,7 @@ local function make_variant(v)
     util_lib.sync_with_base(v, entity)
   end
 
-  -- Remnants in the same colours.
+  -- Remnants in the same colors.
   local base_corpse = base_entity.corpse and data.raw.corpse[base_entity.corpse]
   if base_corpse then
     local corpse = table.deepcopy(base_corpse)
@@ -91,7 +91,7 @@ end
 
 -- Quick conversions between a variant and its base inserter. Neither can roll a quality
 -- upgrade, and neither is used for recycling, as an intermediate or for raw-resource totals.
--- Built after the long-handed stack inserter is recoloured, so its icons are current.
+-- Built after the long-handed stack inserter is recolored, so its icons are current.
 local function make_conversions(v)
   local base_item = data.raw.item[v.base]
   local item = data.raw.item[v.name]
@@ -119,7 +119,7 @@ local function make_conversions(v)
   local to_variant_icons = util_lib.conversion_icons(base_item, item)
   local to_base_icons = util_lib.conversion_icons(item, base_item)
   if v.name == "anti-jam-stack-inserter" and base_item.icon == shared.vanilla_stack_icon and not base_item.icons then
-    local files = shared.conversion_icon_files(shared.colour(v.name), shared.yellow(v.name))
+    local files = shared.conversion_icon_files(shared.color(v.name), shared.yellow(v.name))
     to_variant_icons = {{icon = files.to_variant, icon_size = 64}}
     to_base_icons = {{icon = files.to_base, icon_size = 64}}
   end
@@ -134,13 +134,13 @@ for _, v in pairs(shared.variants) do
   make_variant(v)
 end
 
--- Optional recolour of the long-handed stack inserter itself: platform, arm and icon in
--- another colour, and/or the claw too. Done after the long-handed anti-jam stack inserter
+-- Optional recolor of the long-handed stack inserter itself: platform, arm and icon in
+-- another color, and/or the claw too. Done after the long-handed anti-jam stack inserter
 -- was copied from it.
-local lsi_colour = mods[shared.lsi_mod] and shared.colour("long-stack-inserter")
+local lsi_color = mods[shared.lsi_mod] and shared.color("long-stack-inserter")
 local lsi_yellow = shared.yellow("long-stack-inserter")
-if mods[shared.lsi_mod] and (lsi_colour or not lsi_yellow) then
-  local map = shared.graphics("long-stack-inserter", lsi_colour, lsi_yellow)
+if mods[shared.lsi_mod] and (lsi_color or not lsi_yellow) then
+  local map = shared.graphics("long-stack-inserter", lsi_color, lsi_yellow)
   local lsi_entity = data.raw.inserter["long-stack-inserter"]
   if lsi_entity then
     lsi_entity.icons = util_lib.recolored_icons(lsi_entity, map, nil)
