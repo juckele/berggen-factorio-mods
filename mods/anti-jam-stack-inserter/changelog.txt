@@ -7,14 +7,13 @@ Date: 2026-10-26
     - The anti-jam stack inserter is now the bulk inserter's default upgrade (upgrade planner with no rules),
       and downgrades to it. Can be turned off with a startup setting. Stack inserters still don't upgrade
       or downgrade.
-    - Compatiblity with the Long Stack Inserter mod: adds a long-handed anti-jam stack inserter as well.
-      - Adds color settings for anti-jam stack inserters (default purple without the Long Stack Inserter
-        mod, default black with both mods installed), long-handed stack inserter (default purple), and
-        long-handed anti-jam stack inserter (default aqua).
-      - "Yellow hand" settings: keep the stack inserter's yellow hand and only recolor the platform and
-        arm, like the in the Long Stack Inserter mod. On by default for every stack inserter when both mod
-        are present; off (full recolor) otherwise.
-  Changes:
+    - Compatibility with the Long Stack Inserter mod: adds a long-handed anti-jam stack inserter as well.
+    - Adds color settings for anti-jam stack inserters (default purple without the Long Stack Inserter
+      mod, default black with both mods installed), long-handed stack inserter (default purple), and
+      long-handed anti-jam stack inserter (default aqua).
+    - "Yellow hand" settings: keep the stack inserter's yellow hand and only recolor the platform and
+      arm, like in the Long Stack Inserter mod. On by default for every stack inserter when both mods
+      are present; off (full recolor) otherwise.
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.1
 Date: 2026-10-24
@@ -26,9 +25,9 @@ Version: 1.0.0
 Date: 2026-10-23
   Features:
     - Anti-jam stack inserter: a stack inserter that swings without waiting for a full hand.
-    - Startup setting "Item mode":
-      - Smart swapping (default): built from and mined to stack inserter items; place it with an upgrade
-        planner, blueprint, ghost or pipette. Switching a save to it turns existing anti-jam stack inserter
-        items back into stack inserters.
-      - Distinct item: its own item with the stack inserter's recipe.
-      - Distinct item with quick swap: plus quick conversion recipes between stack and anti-jam stack inserters.
+    - Item mode "Smart swapping" (default startup setting): built from and mined to stack inserter items;
+      place it with an upgrade planner, blueprint, ghost or pipette. Switching a save to it turns existing
+      anti-jam stack inserter items back into stack inserters.
+    - Item mode "Distinct item": its own item with the stack inserter's recipe.
+    - Item mode "Distinct item with quick swap": plus quick conversion recipes between stack and anti-jam
+      stack inserters.

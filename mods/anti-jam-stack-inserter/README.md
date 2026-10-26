@@ -6,10 +6,11 @@ The Space Age stack inserter won't swing until its hand is full, but a hand only
 of item at one quality, so it can get stuck:
 
 - **Quality items:** A higher quality item from a machine or on a mixed belt can leave it
-  stuck waiting for a higher quality item.
+  stuck waiting for more items of that quality.
 - **Spoilable items:** discarding spoilage from a machine can leave it stuck.
 
-An Anti-jam Stack Inserter will swing immediately when picking up items from a chest. When picking up items from a belt it waits about a third of a second before it will swing.
+An anti-jam stack inserter will swing immediately when picking up items from a chest. When
+picking up items from a belt it waits about a third of a second before it will swing.
 
 It's purple, in the style of the classic filter inserter, so you can tell them apart at a
 glance (other colors are available, see below). It has the same speed, power use, health and
@@ -37,8 +38,8 @@ stack inserters, and mining one gives you a stack inserter back, keeping its qua
 - Placing a stack inserter from your inventory still places a regular stack inserter.
 
 Your inventory, chests and logistic network only ever hold stack inserters, so there's
-nothing separate to stock or request. Cheat mode can create actual Anti-jam Stack Inserters
-but that's up to the user to deal with.
+nothing separate to stock or request. Cheat mode can create actual anti-jam stack inserter
+items but that's up to the user to deal with.
 
 If you switch an existing save to smart swapping, any anti-jam stack inserter items are
 turned back into stack inserters when the save loads.
@@ -108,5 +109,6 @@ classic filter inserter, © Wube Software Ltd., and included under the Factorio 
 Service. They aren't covered by this mod's MIT license; see `LICENSE-graphics.md`.
 
 The long-handed variants follow the look of snouz's
-[Long Stack Inserter](https://mods.factorio.com/mod/long_stack_inserter), and its
-recolors are made from that mod's graphics (MIT licensed, themselves adapted from Factorio).
+[Long Stack Inserter](https://mods.factorio.com/mod/long_stack_inserter). This mod's
+recolors of it are made from that mod's graphics (MIT licensed, themselves adapted from
+Factorio).
