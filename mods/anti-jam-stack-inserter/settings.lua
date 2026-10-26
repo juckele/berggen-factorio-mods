@@ -7,7 +7,7 @@ data:extend({
     name = "anti-jam-stack-inserter-mode",
     setting_type = "startup",
     default_value = "smart-swapping",
-    allowed_values = {"smart-swapping", "distinct-item", "distinct-item-quick-swap"},
+    allowed_values = {"smart-swapping", "distinct-item", "distinct-item-quick-swap", "crafted-upgrade"},
     order = "a",
   },
   {

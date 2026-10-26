@@ -9,6 +9,8 @@ shared.lsi_mod = "long_stack_inserter"
 --                             own item only exists in the cursor (control.lua)
 --   distinct-item             its own item and recipe, like any other inserter
 --   distinct-item-quick-swap  distinct-item plus quick conversion recipes both ways
+--   crafted-upgrade           its own item, crafted from the base inserter + selector
+--                             combinator + processing unit
 shared.mode_setting = "anti-jam-stack-inserter-mode"
 shared.colour_settings = {
   ["anti-jam-stack-inserter"] = "anti-jam-stack-inserter-colour",

@@ -66,7 +66,23 @@ local function make_variant(v)
 
   data:extend({entity, item})
 
-  if distinct then
+  if mode == "crafted-upgrade" then
+    -- Crafted from the base inserter plus a selector combinator and a processing unit.
+    -- Recycles back to those, and quality modules work as usual.
+    data:extend({{
+      type = "recipe",
+      name = v.name,
+      enabled = false,
+      energy_required = 0.5,
+      ingredients = {
+        {type = "item", name = v.base, amount = 1},
+        {type = "item", name = "selector-combinator", amount = 1},
+        {type = "item", name = "processing-unit", amount = 1},
+      },
+      results = {{type = "item", name = v.name, amount = 1}},
+      order = item.order,
+    }})
+  elseif distinct then
     -- Main recipe: a copy of the base recipe. data-final-fixes copies it again so changes
     -- other mods make to the base recipe carry over.
     util_lib.copy_base_recipe(v)

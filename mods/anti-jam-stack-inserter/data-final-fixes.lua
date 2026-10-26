@@ -7,8 +7,10 @@ for _, v in pairs(shared.variants) do
   local entity = data.raw.inserter[v.name]
   if entity then
     if mode ~= "smart-swapping" then
-      -- Re-copy the base recipe so changes other mods made to it carry over.
-      util_lib.copy_base_recipe(v)
+      if mode ~= "crafted-upgrade" then
+        -- Re-copy the base recipe so changes other mods made to it carry over.
+        util_lib.copy_base_recipe(v)
+      end
       -- Unlock alongside the base inserter, wherever the tech tree now puts it.
       local unlocks = {v.name}
       if mode == "distinct-item-quick-swap" then

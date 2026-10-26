@@ -7,6 +7,8 @@ Date: 2026-10-26
     - With the Long-handed stack inserter mod: a long-handed anti-jam stack inserter, in every item mode,
       with its own colour setting (automatic: aqua) and an optional recolour of the long-handed stack
       inserter itself.
+    - New item mode "Crafted upgrade": crafted from a stack inserter, a selector combinator and a processing
+      unit; recycles back to them and accepts quality modules.
     - "Yellow hand" settings: keep the stack inserter's yellow hand and only recolour the platform and arm,
       like the long-handed stack inserter. On by default for every inserter when that mod is installed;
       off (full recolour) otherwise.

@@ -54,6 +54,12 @@ As distinct item, plus two quick recipes that turn a stack inserter into an anti
 inserter and back. They keep the inserter's quality and don't take quality modules, so can't
 be used to cheese quality.
 
+### Crafted upgrade
+
+The anti-jam stack inserter is its own item, crafted from a stack inserter, a selector
+combinator and a processing unit. It's unlocked with the stack inserter, recycles back into
+those three, and can be crafted with quality modules.
+
 ## Upgrading from bulk inserters
 
 By default the anti-jam stack inserter is the bulk inserter's next upgrade: an upgrade planner
@@ -79,8 +85,9 @@ With the [Long-handed stack inserter](https://mods.factorio.com/mod/long_stack_i
 installed, you also get a **long-handed anti-jam stack inserter**: the long-handed stack
 inserter's reach, without waiting for a full hand. It works like the anti-jam stack inserter
 in every item mode, with the long-handed stack inserter in place of the stack inserter: smart
-swapping builds it from long-handed stack inserters, and the distinct item modes use the
-long-handed stack inserter's recipe and research.
+swapping builds it from long-handed stack inserters, the distinct item modes use the
+long-handed stack inserter's recipe and research, and the crafted upgrade starts from a
+long-handed stack inserter.
 
 More settings appear when it's installed:
 
