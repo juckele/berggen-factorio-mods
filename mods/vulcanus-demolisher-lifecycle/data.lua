@@ -45,4 +45,4 @@ data:extend({
     is_military_target = true,
   },
 })
-require("prototypes.ping-turret")
+require("prototypes.lure-turret")

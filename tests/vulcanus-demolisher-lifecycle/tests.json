@@ -233,8 +233,8 @@
       ]
     },
     {
-      "name": "ping-turret",
-      "description": "A ping turret 80 tiles from a demolisher targets only demolishers, hits it lightly within a turn and a cooldown, fires about once per 15 s, and the demolisher comes after the turret.",
+      "name": "lure-turret",
+      "description": "A lure turret 80 tiles from a demolisher targets only demolishers, hits it lightly within a turn and a cooldown, fires about once per 15 s, and the demolisher comes after the turret.",
       "steps": [
         {
           "phase": "established-setup",
@@ -245,7 +245,7 @@
           "expect_done": true
         },
         {
-          "phase": "ping-turret-add",
+          "phase": "lure-turret-add",
           "benchmark": 3100,
           "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
           "expect_done": true
@@ -253,7 +253,7 @@
       ]
     },
     {
-      "name": "ping-turret-filter",
+      "name": "lure-turret-filter",
       "description": "Filtering by demolisher head: with only big demolishers in its priority list (and ignoring others) the turret holds fire; switched to small demolishers, it pings only small ones.",
       "steps": [
         {
@@ -265,7 +265,7 @@
           "expect_done": true
         },
         {
-          "phase": "ping-turret-filter-add",
+          "phase": "lure-turret-filter-add",
           "benchmark": 4900,
           "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
           "expect_done": true

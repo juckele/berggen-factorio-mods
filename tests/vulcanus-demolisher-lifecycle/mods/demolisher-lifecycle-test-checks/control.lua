@@ -740,10 +740,10 @@ phases["no-enemies-add"] = {
   end,
 }
 
--- ping-turret: a ping turret 80 tiles from a demolisher pings it slowly, and the demolisher comes
+-- lure-turret: a lure turret 80 tiles from a demolisher pings it slowly, and the demolisher comes
 -- after the turret.
 local ping = { hits = 0 }
-phases["ping-turret-add"] = {
+phases["lure-turret-add"] = {
   tuning = {
     expansion_enabled = false, growth_enabled = false, nest_enabled = false, hatch_enabled = false,
     vibration_check_interval = 1000000,
@@ -752,8 +752,8 @@ phases["ping-turret-add"] = {
     local surface = vulcanus()
     local unit = surface.get_segmented_units()[1]
     local head = unit.get_body_nodes()[1]
-    local spot = surface.find_non_colliding_position("demolisher-ping-turret", { head.x + 80, head.y }, 20, 1)
-    local turret = surface.create_entity({ name = "demolisher-ping-turret", position = spot, force = "player", raise_built = true })
+    local spot = surface.find_non_colliding_position("demolisher-lure-turret", { head.x + 80, head.y }, 20, 1)
+    local turret = surface.create_entity({ name = "demolisher-lure-turret", position = spot, force = "player", raise_built = true })
     H.check("placed-turret", turret ~= nil)
     ping.turret = turret
     ping.start = coil_dist(head, turret.position)
@@ -763,11 +763,11 @@ phases["ping-turret-add"] = {
       local p = prototypes.entity[head]
       H.check("head-pickable-" .. head, p and not p.hidden and p.subgroup.name == "enemies")
     end
-    turret.insert({ name = "demolisher-ping-shell", count = 10 })
+    turret.insert({ name = "demolisher-lure-shell", count = 10 })
     H.info("start", string.format("turret %.0f tiles from the demolisher's head", ping.start))
-    local tech = game.forces.player.technologies["demolisher-ping-turret"]
+    local tech = game.forces.player.technologies["demolisher-lure-turret"]
     H.check("tech-needs-metallurgic", tech and tech.prerequisites["metallurgic-science-pack"] ~= nil)
-    H.check("turret-uses-tungsten", prototypes.recipe["demolisher-ping-turret"].ingredients[2].name == "tungsten-plate")
+    H.check("turret-uses-tungsten", prototypes.recipe["demolisher-lure-turret"].ingredients[2].name == "tungsten-plate")
   end,
   ticks = function()
     script.on_event(defines.events.on_segmented_unit_damaged, function(event)
@@ -798,7 +798,7 @@ phases["ping-turret-add"] = {
         ping.finished = true
         H.check("pinged", ping.first_hit ~= nil and ping.first_hit <= 1900, "first hit at " .. tostring(ping.first_hit))
         H.check("light-damage", (ping.damage or 0) > 0 and (ping.damage or 0) <= 20, "damage per hit " .. tostring(ping.damage))
-        local used = 10 - ping.turret.get_item_count("demolisher-ping-shell")
+        local used = 10 - ping.turret.get_item_count("demolisher-lure-shell")
         H.check("fires-slowly", used >= 1 and used <= 3, used .. " shells in 50 s")
         H.check("demolisher-comes-for-turret", ping.lured ~= nil)
         local start = ping.target_start or 0
@@ -812,10 +812,10 @@ phases["ping-turret-add"] = {
   end,
 }
 
--- ping-turret-filter: priority targets by head size. Listing only big demolishers (none nearby)
+-- lure-turret-filter: priority targets by head size. Listing only big demolishers (none nearby)
 -- keeps it quiet; listing small demolishers makes it ping one.
 local pf = {}
-phases["ping-turret-filter-add"] = {
+phases["lure-turret-filter-add"] = {
   tuning = {
     expansion_enabled = false, growth_enabled = false, nest_enabled = false, hatch_enabled = false,
     vibration_check_interval = 1000000,
@@ -827,11 +827,11 @@ phases["ping-turret-filter-add"] = {
       if unit.prototype.name == "small-demolisher" then small = small or unit end
     end
     local head = small.get_body_nodes()[1]
-    local spot = surface.find_non_colliding_position("demolisher-ping-turret", { head.x + 70, head.y }, 20, 1)
-    pf.turret = surface.create_entity({ name = "demolisher-ping-turret", position = spot, force = "player", raise_built = true })
+    local spot = surface.find_non_colliding_position("demolisher-lure-turret", { head.x + 70, head.y }, 20, 1)
+    pf.turret = surface.create_entity({ name = "demolisher-lure-turret", position = spot, force = "player", raise_built = true })
     pf.turret.set_priority_target(1, "big-demolisher")
     pf.turret.ignore_unprioritised_targets = true
-    pf.turret.insert({ name = "demolisher-ping-shell", count = 10 })
+    pf.turret.insert({ name = "demolisher-lure-shell", count = 10 })
     pf.hits = {}
   end,
   ticks = function()
@@ -843,7 +843,7 @@ phases["ping-turret-filter-add"] = {
     end)
     H.at(2400, function()
       H.equal("big-only-filter-stays-quiet", table_size(pf.hits), 0)
-      H.equal("no-shells-used-while-filtered-out", pf.turret.get_item_count("demolisher-ping-shell"), 10)
+      H.equal("no-shells-used-while-filtered-out", pf.turret.get_item_count("demolisher-lure-shell"), 10)
       pf.turret.set_priority_target(1, "small-demolisher")
     end)
     H.at(4800, function()

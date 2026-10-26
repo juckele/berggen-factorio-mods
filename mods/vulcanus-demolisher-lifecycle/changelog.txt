@@ -23,9 +23,9 @@ Version: 0.2.0
       there is cleared land next to their parent's territory, otherwise once old. Eggs can be destroyed.
     - Expansion, growth, nesting and hatching each follow the map's enemy expansion settings and evolution.
     - Warns in chat when enemy expansion is turned off in the map settings, which the mod needs.
-    - Ping turret (after metallurgic science): very long range, very slow, and barely damaging; it lures
-      demolishers to your defences. To ping only some sizes, add those demolishers to its priority targets and
-      ignore other targets. Uses cheap ping shells.
+    - Lure turret (after metallurgic science): very long range, very slow, and barely damaging; it lures
+      demolishers to your defences. To lure only some sizes, add those demolishers to its priority targets and
+      ignore other targets. Uses cheap lure shells.
     - Eggs hatching within radar coverage raise the game's expansion alert.
     - In no-enemies mode the mod does nothing and says so in chat, instead of removing every (empty) territory.
     - New Vulcanus pollution layer, vibration: mining drills, pumps and offshore pumps make it, lava absorbs it

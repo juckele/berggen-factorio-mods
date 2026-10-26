@@ -93,7 +93,7 @@ goes back to being player-facing text for the mod portal.
   `is_cleared_chunk(x, y)`. For testing: `set_tuning{key = value}` overrides `tuning.lua` values,
   `run_event(name)` runs one event now, and `clear_chunks(chunks)` clears chunks as a kill would. The headless tests use it, and other mods can too.
 
-- **Ping turret.** A very slow, very long-range turret (behind metallurgic science) that pings
+- **Lure turret.** A very slow, very long-range turret (behind metallurgic science) that hits
   demolishers for light damage so they come for it; see roadmap section 6.
 
 ## Testing this build
@@ -206,23 +206,23 @@ Open:
 - [x] The player can't extend the safe zone: it is only the original starting area. Land they
       clear and build on stays open to expansion.
 
-### 6. Ping turret: automated demolisher handling
+### 6. Lure turret: automated demolisher handling
 Decided: it lures demolishers by hurting them a little, so they come for the turret and into the
 player's defences. It's a turret, so it can be automated.
 
 Starting version:
-- [x] *Ping turret* (`demolisher-ping-turret`): an ammo turret kitbashed from the gun turret
+- [x] *Lure turret* (`demolisher-lure-turret`): an ammo turret kitbashed from the gun turret
       (graphics and icons unchanged until real art exists), firing a cannon-shell
       projectile with the tank cannon's sound. Range 96 (past a demolisher's vision), one shot
       every 15 s, 15 s for a full turn, 20 physical damage per hit (10 after a head's resistance).
-- [x] Built with no priority list, like vanilla turrets. To ping only some sizes, add the size's
+- [x] Built with no priority list, like vanilla turrets. To lure only some sizes, add the size's
       head (small/medium/big demolisher, all in the picker's enemies group) to its priority targets
       and set it to ignore other targets; the head entry covers the whole demolisher
-      (`ping-turret-filter` test). The segments are hidden prototypes and aren't needed.
-- [x] *Ping shell* ammo: 2 iron plate + 1 calcite → 2 shells.
-- [x] Recipe: 1 gun turret, 10 tungsten plate, 10 steel plate. Technology *Ping turret* after
+      (`lure-turret-filter` test). The segments are hidden prototypes and aren't needed.
+- [x] *Lure shell* ammo: 2 iron plate + 1 calcite → 2 shells.
+- [x] Recipe: 1 gun turret, 10 tungsten plate, 10 steel plate. Technology *Lure turret* after
       metallurgic science pack (automation, logistic, chemical, space, metallurgic; 300 × 30 s).
-- [x] `ping-turret` test: a demolisher 128 tiles away is hit, goes `enraged_at_target` on the
+- [x] `lure-turret` test: a demolisher 128 tiles away is hit, goes `enraged_at_target` on the
       turret, and closes to 9 tiles in about 40 s.
 
 Open:
