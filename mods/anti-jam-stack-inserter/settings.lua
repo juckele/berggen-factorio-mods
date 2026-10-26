@@ -1,4 +1,5 @@
 local colours = {"automatic", "purple", "aqua", "magenta", "black"}
+local lsi = mods["long_stack_inserter"] ~= nil
 
 data:extend({
   {
@@ -15,7 +16,16 @@ data:extend({
     setting_type = "startup",
     default_value = "automatic",
     allowed_values = colours,
-    order = "b",
+    order = "b-a",
+  },
+  {
+    -- Keep the vanilla yellow claw, like the long-handed stack inserter does. On by default
+    -- when that mod is installed, so all the stack inserters match.
+    type = "bool-setting",
+    name = "anti-jam-stack-inserter-yellow-hand",
+    setting_type = "startup",
+    default_value = lsi,
+    order = "b-b",
   },
 })
 
@@ -28,7 +38,14 @@ if mods["long_stack_inserter"] then
       setting_type = "startup",
       default_value = "automatic",
       allowed_values = colours,
-      order = "c",
+      order = "c-a",
+    },
+    {
+      type = "bool-setting",
+      name = "anti-jam-stack-inserter-long-yellow-hand",
+      setting_type = "startup",
+      default_value = true,
+      order = "c-b",
     },
     {
       type = "string-setting",
@@ -36,7 +53,14 @@ if mods["long_stack_inserter"] then
       setting_type = "startup",
       default_value = "automatic",
       allowed_values = colours,
-      order = "d",
+      order = "d-a",
+    },
+    {
+      type = "bool-setting",
+      name = "anti-jam-stack-inserter-lsi-yellow-hand",
+      setting_type = "startup",
+      default_value = true,
+      order = "d-b",
     },
   })
 end

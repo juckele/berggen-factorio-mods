@@ -61,6 +61,10 @@ A startup setting picks the anti-jam stack inserter's colour: purple, aqua, mage
 [Long-handed stack inserter](https://mods.factorio.com/mod/long_stack_inserter) mod is
 installed, since that inserter is purple too.
 
+**Yellow hand** keeps the stack inserter's yellow hand and only recolours the platform and
+arm, the way the long-handed stack inserter looks. It's off by default (the whole inserter
+is recoloured), and on by default when the long-handed stack inserter mod is installed.
+
 ## Long-handed stack inserter
 
 With the [Long-handed stack inserter](https://mods.factorio.com/mod/long_stack_inserter) mod
@@ -70,11 +74,13 @@ in every item mode, with the long-handed stack inserter in place of the stack in
 swapping builds it from long-handed stack inserters, and the distinct item modes use the
 long-handed stack inserter's recipe and research.
 
-Two more colour settings appear when it's installed:
+More settings appear when it's installed:
 
 - **Long-handed anti-jam stack inserter colour:** purple, aqua, magenta or black. Automatic is aqua.
-- **Long-handed stack inserter colour:** recolours the long-handed stack inserter itself (its
-  hand stays yellow). Automatic and purple keep its own look.
+- **Long-handed stack inserter colour:** recolours the long-handed stack inserter itself.
+  Automatic and purple keep its own colours.
+- **Yellow hand** for each of them, on by default so every stack inserter shares the
+  long-handed stack inserter's style. Turn it off for a full recolour.
 
 ## Compatibility
 
@@ -87,5 +93,5 @@ classic filter inserter, © Wube Software Ltd., and included under the Factorio 
 Service. They aren't covered by this mod's MIT license; see `LICENSE-graphics.md`.
 
 The long-handed variants follow the look of snouz's
-[Long-handed stack inserter](https://mods.factorio.com/mod/long_stack_inserter); their graphics
-are made from the same Factorio sources as above.
+[Long-handed stack inserter](https://mods.factorio.com/mod/long_stack_inserter), and its
+recolours are made from that mod's graphics (MIT licensed, themselves adapted from Factorio).

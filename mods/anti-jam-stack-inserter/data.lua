@@ -11,7 +11,7 @@ local function make_variant(v)
   local base_item = data.raw.item[v.base]
   if not (base_entity and base_item) then return end
   local colour = shared.colour(v.name)
-  local map = shared.graphics(v.name, colour)
+  local map = shared.graphics(v.name, colour, shared.yellow(v.name))
   local tint = shared.tints[colour]
 
   local entity = table.deepcopy(base_entity)
@@ -103,7 +103,7 @@ local function make_conversions(v)
   local to_variant_icons = util_lib.conversion_icons(base_item, item)
   local to_base_icons = util_lib.conversion_icons(item, base_item)
   if v.name == "anti-jam-stack-inserter" and base_item.icon == shared.vanilla_stack_icon and not base_item.icons then
-    local files = shared.conversion_icon_files(shared.colour(v.name))
+    local files = shared.conversion_icon_files(shared.colour(v.name), shared.yellow(v.name))
     to_variant_icons = {{icon = files.to_variant, icon_size = 64}}
     to_base_icons = {{icon = files.to_base, icon_size = 64}}
   end
@@ -118,16 +118,18 @@ for _, v in pairs(shared.variants) do
   make_variant(v)
 end
 
--- Optional recolour of the long-handed stack inserter itself (platform, arm and icon; its
--- hand stays yellow). Done after the long-handed anti-jam stack inserter was copied from it.
+-- Optional recolour of the long-handed stack inserter itself: platform, arm and icon in
+-- another colour, and/or the claw too. Done after the long-handed anti-jam stack inserter
+-- was copied from it.
 local lsi_colour = mods[shared.lsi_mod] and shared.colour("long-stack-inserter")
-if lsi_colour then
-  local map = shared.graphics("long-stack-inserter", lsi_colour)
+local lsi_yellow = shared.yellow("long-stack-inserter")
+if mods[shared.lsi_mod] and (lsi_colour or not lsi_yellow) then
+  local map = shared.graphics("long-stack-inserter", lsi_colour, lsi_yellow)
   local lsi_entity = data.raw.inserter["long-stack-inserter"]
   if lsi_entity then
     lsi_entity.icons = util_lib.recolored_icons(lsi_entity, map, nil)
     lsi_entity.icon = nil
-    for _, key in pairs({"hand_base_picture", "platform_picture"}) do
+    for _, key in pairs({"hand_base_picture", "hand_open_picture", "hand_closed_picture", "platform_picture"}) do
       util_lib.recolor_graphics(lsi_entity[key], map, nil)
     end
   end
