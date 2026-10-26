@@ -1,5 +1,5 @@
 -- Ping turret: a very slow, very long-range turret that lures demolishers by hurting them a
--- little. Kitbashed from the gun turret (body, tinted), the cannon shell (projectile, icon) and the
+-- little. Kitbashed from the gun turret (body), the cannon shell (projectile, icon) and the
 -- tank cannon (sound). Balance values are placeholders.
 
 local TINT = { r = 0.95, g = 0.62, b = 0.38, a = 1 }
@@ -7,18 +7,6 @@ local RANGE = 96          -- past a demolisher's vision, so it is pinged from ou
 local COOLDOWN = 15 * 60  -- one shot every 15 s
 local TURN_TIME = 15 * 60 -- 15 s for a full turn
 local DAMAGE = 20         -- physical; demolishers resist half, enough to enrage them
-
--- Tint every non-shadow sprite layer in a graphics table.
-local function tint(t)
-  if type(t) ~= "table" then return end
-  if t.filename or t.filenames or t.stripes then
-    if not t.draw_as_shadow then t.tint = TINT end
-  end
-  for k, v in pairs(t) do
-    -- A stripe is part of its layer; the tint goes on the layer.
-    if k ~= "stripes" then tint(v) end
-  end
-end
 
 data:extend({ { type = "ammo-category", name = "demolisher-ping", hidden_in_factoriopedia = true } })
 
@@ -33,12 +21,8 @@ turret.rotation_speed = 1 / TURN_TIME
 turret.prepare_range = RANGE + 4
 turret.automated_ammo_count = 5
 turret.inventory_size = 1
-tint(turret.graphics_set)
-tint(turret.folded_animation)
-tint(turret.preparing_animation)
-tint(turret.prepared_animation)
-tint(turret.attacking_animation)
-tint(turret.folding_animation)
+-- The body keeps the gun turret's graphics untinted, so its mask shows the player's colour like
+-- other turrets. Only the icons are tinted, to tell it apart in inventories.
 local attack = turret.attack_parameters
 attack.type = "projectile"
 attack.ammo_category = "demolisher-ping"
