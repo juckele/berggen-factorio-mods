@@ -1,35 +1,42 @@
-local NAME = "anti-jam-stack-inserter"
-local BASE = "stack-inserter"
+-- Each anti-jam inserter and the base inserter it's built from. The long-handed pair only
+-- exists with the long-handed stack inserter mod; unknown names simply never match.
+local BASE_OF = {
+  ["anti-jam-stack-inserter"] = "stack-inserter",
+  ["long-anti-jam-stack-inserter"] = "long-stack-inserter",
+}
 
 -- Everything here is for the "smart swapping" mode. With a distinct item it's an ordinary
 -- inserter and needs no scripting.
 if settings.startup["anti-jam-stack-inserter-mode"].value ~= "smart-swapping" then return end
 
--- With smart swapping the anti-jam stack inserter is built from, and mines to, stack
--- inserter items. Its own item only ever lives in a player's cursor: stack inserters are
--- swapped for it when the player wants to place anti-jam stack inserters, and it turns
--- back into stack inserters wherever it ends up outside the cursor. That keeps
--- construction robots, logistics and recycling dealing only with stack inserters.
+-- With smart swapping an anti-jam inserter is built from, and mines to, its base
+-- inserter's items. Its own item only ever lives in a player's cursor: base items are
+-- swapped for it when the player wants to place anti-jam inserters, and it turns back into
+-- base items wherever it ends up outside the cursor. That keeps construction robots,
+-- logistics and recycling dealing only with the base inserters.
 
-local function is_anti_jam(entity)
-  if not (entity and entity.valid) then return false end
-  if entity.name == NAME then return true end
-  return entity.type == "entity-ghost" and entity.ghost_name == NAME
+-- The anti-jam inserter an entity (or ghost) is, or nil.
+local function anti_jam_name(entity)
+  if not (entity and entity.valid) then return nil end
+  if BASE_OF[entity.name] then return entity.name end
+  if entity.type == "entity-ghost" and BASE_OF[entity.ghost_name] then return entity.ghost_name end
+  return nil
 end
 
--- Replace every anti-jam item in an inventory with the same number of stack inserters.
+-- Replace every anti-jam item in an inventory with the same number of base items.
 -- Each convert_* function returns how many items it converted.
 local function convert_inventory(inventory)
   if not (inventory and inventory.valid) then return 0 end
   local converted = 0
   for _, item in pairs(inventory.get_contents()) do
-    if item.name == NAME then
-      local removed = inventory.remove({name = NAME, count = item.count, quality = item.quality})
+    local base = BASE_OF[item.name]
+    if base then
+      local removed = inventory.remove({name = item.name, count = item.count, quality = item.quality})
       if removed > 0 then
-        local inserted = inventory.insert({name = BASE, count = removed, quality = item.quality})
+        local inserted = inventory.insert({name = base, count = removed, quality = item.quality})
         if inserted < removed then
           -- Shouldn't happen (same slot usage); put back what didn't fit.
-          inventory.insert({name = NAME, count = removed - inserted, quality = item.quality})
+          inventory.insert({name = item.name, count = removed - inserted, quality = item.quality})
         end
         converted = converted + inserted
       end
@@ -39,9 +46,9 @@ local function convert_inventory(inventory)
 end
 
 local function convert_stack(stack)
-  if stack and stack.valid_for_read and stack.name == NAME then
+  if stack and stack.valid_for_read and BASE_OF[stack.name] then
     local count = stack.count
-    stack.set_stack({name = BASE, count = count, quality = stack.quality.name})
+    stack.set_stack({name = BASE_OF[stack.name], count = count, quality = stack.quality.name})
     return count
   end
   return 0
@@ -80,43 +87,46 @@ local function convert_player_inventories(player)
     + convert_inventory(player.get_inventory(defines.inventory.character_trash))
 end
 
--- Holding an anti-jam ghost while carrying stack inserters of that quality: hold real
+-- Holding an anti-jam ghost while carrying base items of that quality: hold real
 -- anti-jam items instead (one inventory stack's worth, like picking up from the inventory).
 local function upgrade_ghost_cursor(player)
   local cursor = player.cursor_stack
   if not cursor or cursor.valid_for_read then return end
   local ghost = player.cursor_ghost
-  if not (ghost and ghost.name and ghost.name.name == NAME) then return end
+  local name = ghost and ghost.name and ghost.name.name
+  local base = name and BASE_OF[name]
+  if not base then return end
   local quality = ghost.quality and ghost.quality.name or "normal"
   local inventory = player.get_main_inventory()
   if not inventory then return end
-  local found = inventory.find_item_stack({name = BASE, quality = quality})
+  local found = inventory.find_item_stack({name = base, quality = quality})
   if not found then return end
   local count = found.count
   found.clear()
-  cursor.set_stack({name = NAME, count = count, quality = quality})
+  cursor.set_stack({name = name, count = count, quality = quality})
 end
 
 script.on_event(defines.events.on_player_pipette, function(event)
-  if event.item.name == NAME then return end
-  if not prototypes.item[NAME] then return end
+  if BASE_OF[event.item.name] then return end
   local player = game.get_player(event.player_index)
   if not player then return end
   local entity = player.selected
-  if not is_anti_jam(entity) then return end
+  local name = anti_jam_name(entity)
+  if not (name and prototypes.item[name]) then return end
+  local base = BASE_OF[name]
   local cursor = player.cursor_stack
   if not cursor then return end
 
-  -- The pipette handed over stack inserters (from the inventory, or free in cheat mode):
-  -- hold the same number of anti-jam ones instead.
-  if cursor.valid_for_read and cursor.name == BASE then
-    cursor.set_stack({name = NAME, count = cursor.count, quality = cursor.quality.name})
+  -- The pipette handed over base items (from the inventory, or free in cheat mode): hold
+  -- the same number of anti-jam ones instead.
+  if cursor.valid_for_read and cursor.name == base then
+    cursor.set_stack({name = name, count = cursor.count, quality = cursor.quality.name})
     return
   end
 
   -- Nothing to place: hold an anti-jam ghost.
   if player.clear_cursor() then
-    player.cursor_ghost = {name = NAME, quality = entity.quality.name}
+    player.cursor_ghost = {name = name, quality = entity.quality.name}
   end
 end)
 
@@ -124,7 +134,7 @@ script.on_event(defines.events.on_player_cursor_stack_changed, function(event)
   local player = game.get_player(event.player_index)
   if not player then return end
   local cursor = player.cursor_stack
-  if cursor and cursor.valid_for_read and cursor.name == NAME then return end
+  if cursor and cursor.valid_for_read and BASE_OF[cursor.name] then return end
   -- Anti-jam items left the cursor: back to the inventory or trash (clear cursor), or
   -- into whatever the player had open (clicked into a chest, car, wagon...).
   convert_player_inventories(player)
@@ -165,7 +175,7 @@ script.on_event(defines.events.on_pre_player_died, convert_cursor)
 script.on_event(defines.events.on_pre_player_left_game, convert_cursor)
 
 -- Switching a save to smart swapping from a distinct-item mode leaves real anti-jam items
--- around. Sweep the whole game once and turn them all into stack inserters.
+-- around. Sweep the whole game once and turn them all into their base inserters.
 local function convert_everything()
   local converted = 0
   for _, surface in pairs(game.surfaces) do

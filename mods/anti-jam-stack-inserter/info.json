@@ -1,12 +1,13 @@
 {
   "name": "anti-jam-stack-inserter",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "title": "Anti-jam Stack Inserter",
   "author": "berggen",
   "factorio_version": "2.1",
   "dependencies": [
     "base >= 2.1.0",
-    "space-age >= 2.1.0"
+    "space-age >= 2.1.0",
+    "? long_stack_inserter"
   ],
   "package": { "category": "content" },
   "description": "An anti-jam stack inserter that doesn't wait for a full hand, so belt stacking works on lines of mixed quality or spoilable items."

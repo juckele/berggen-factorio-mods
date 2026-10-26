@@ -12,8 +12,8 @@ of item at one quality, so it can get stuck:
 An Anti-jam Stack Inserter will swing immediately when picking up items from a chest. When picking up items from a belt it waits about a third of a second before it will swing.
 
 It's purple, in the style of the classic filter inserter, so you can tell them apart at a
-glance. It has the same speed, power use, health and hand size as the stack inserter, and
-inserter capacity research applies the same way.
+glance (other colours are available, see below). It has the same speed, power use, health and
+hand size as the stack inserter, and inserter capacity research applies the same way.
 
 ## Getting anti-jam stack inserters
 
@@ -54,6 +54,28 @@ As distinct item, plus two quick recipes that turn a stack inserter into an anti
 inserter and back. They keep the inserter's quality and don't take quality modules, so can't
 be used to cheese quality.
 
+## Colours
+
+A startup setting picks the anti-jam stack inserter's colour: purple, aqua, magenta or black.
+**Automatic** (the default) is purple, or black when the
+[Long-handed stack inserter](https://mods.factorio.com/mod/long_stack_inserter) mod is
+installed, since that inserter is purple too.
+
+## Long-handed stack inserter
+
+With the [Long-handed stack inserter](https://mods.factorio.com/mod/long_stack_inserter) mod
+installed, you also get a **long-handed anti-jam stack inserter**: the long-handed stack
+inserter's reach, without waiting for a full hand. It works like the anti-jam stack inserter
+in every item mode, with the long-handed stack inserter in place of the stack inserter: smart
+swapping builds it from long-handed stack inserters, and the distinct item modes use the
+long-handed stack inserter's recipe and research.
+
+Two more colour settings appear when it's installed:
+
+- **Long-handed anti-jam stack inserter colour:** purple, aqua, magenta or black. Automatic is aqua.
+- **Long-handed stack inserter colour:** recolours the long-handed stack inserter itself (its
+  hand stays yellow). Automatic and purple keep its own look.
+
 ## Compatibility
 
 Works with mods that change the stack inserter: it follows changes to its recipe and research.
@@ -63,3 +85,7 @@ Works with mods that change the stack inserter: it follows changes to its recipe
 The anti-jam stack inserter's graphics are adapted from Factorio's stack inserter and the
 classic filter inserter, © Wube Software Ltd., and included under the Factorio Terms of
 Service. They aren't covered by this mod's MIT license; see `LICENSE-graphics.md`.
+
+The long-handed variants follow the look of snouz's
+[Long-handed stack inserter](https://mods.factorio.com/mod/long_stack_inserter); their graphics
+are made from the same Factorio sources as above.

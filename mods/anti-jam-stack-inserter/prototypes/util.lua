@@ -1,47 +1,64 @@
-local shared = require("shared")
-
+-- Data-stage helpers. `v` is one of shared.variants: {name, base, to_variant, to_base, ...}.
 local lib = {}
 
 local function is_sprite(t)
   return t.filename ~= nil or t.filenames ~= nil or t.stripes ~= nil
 end
 
--- Swaps vanilla stack inserter sprites in a graphics table for the purple ones.
--- Sprites it doesn't recognise (another mod's reskin) are tinted instead.
+-- Swaps known sprites in a graphics table for ours (`map`: original file -> our file).
+-- Sprites it doesn't recognise (another mod's reskin) get `tint` instead, if given.
 -- Shadows are left alone.
-function lib.recolor_graphics(graphics)
+function lib.recolor_graphics(graphics, map, tint)
   if type(graphics) ~= "table" then return end
   if is_sprite(graphics) and not graphics.draw_as_shadow then
-    local replacement = graphics.filename and shared.graphics[graphics.filename]
+    local replacement = graphics.filename and map[graphics.filename]
     if replacement then
       graphics.filename = replacement
-    else
-      graphics.tint = shared.tint
+    elseif tint then
+      graphics.tint = tint
     end
   end
   for key, value in pairs(graphics) do
     if type(value) == "table" and key ~= "tint" then
-      lib.recolor_graphics(value)
+      lib.recolor_graphics(value, map, tint)
     end
   end
 end
 
+local function icon_layers(prototype)
+  if prototype.icons then return table.deepcopy(prototype.icons) end
+  return {{icon = prototype.icon, icon_size = prototype.icon_size}}
+end
+
 -- Icon layers for a prototype with either `icon` or `icons`, recoloured the same way.
-function lib.recolored_icons(prototype)
-  local icons
-  if prototype.icons then
-    icons = table.deepcopy(prototype.icons)
-  else
-    icons = {{icon = prototype.icon, icon_size = prototype.icon_size}}
-  end
+function lib.recolored_icons(prototype, map, tint)
+  local icons = icon_layers(prototype)
   for _, layer in pairs(icons) do
-    local replacement = shared.graphics[layer.icon]
+    local replacement = map[layer.icon]
     if replacement then
       layer.icon = replacement
-    else
-      layer.tint = shared.tint
+    elseif tint then
+      layer.tint = tint
     end
   end
+  return icons
+end
+
+-- Nutrient-style recipe icon built from layers: the input at the top left, the output
+-- slightly larger at the bottom right, in front. Item icons are 32 units across.
+function lib.conversion_icons(input, output)
+  local icons = {}
+  local function add(layers, factor, offset)
+    for _, layer in pairs(table.deepcopy(layers)) do
+      local base_scale = layer.scale or (32 / (layer.icon_size or 64))
+      local shift = layer.shift or {0, 0}
+      layer.scale = base_scale * factor
+      layer.shift = {(shift[1] or shift.x or 0) * factor + offset, (shift[2] or shift.y or 0) * factor + offset}
+      table.insert(icons, layer)
+    end
+  end
+  add(icon_layers(input), 0.66, -(32 - 32 * 0.66) / 2)
+  add(icon_layers(output), 0.72, (32 - 32 * 0.72) / 2)
   return icons
 end
 
@@ -54,49 +71,49 @@ local function rename_item(list, from, to)
   end
 end
 
--- Makes `data.raw.recipe[shared.name]` an exact copy of the current stack inserter
--- recipe, producing the anti-jam inserter instead.
-function lib.copy_stack_inserter_recipe()
-  local source = data.raw.recipe[shared.base_name]
+-- Makes `data.raw.recipe[v.name]` an exact copy of the base inserter's recipe, producing
+-- the variant instead, and recycling to the base recipe's ingredients.
+function lib.copy_base_recipe(v)
+  local source = data.raw.recipe[v.base]
   if not source then return false end
   local recipe = table.deepcopy(source)
-  recipe.name = shared.name
+  recipe.name = v.name
   recipe.localised_name = nil
   recipe.localised_description = nil
-  rename_item(recipe.results, shared.base_name, shared.name)
-  if recipe.main_product == shared.base_name then
-    recipe.main_product = shared.name
+  rename_item(recipe.results, v.base, v.name)
+  if recipe.main_product == v.base then
+    recipe.main_product = v.name
   end
-  -- The recycler (data-updates) recycles it to the stack inserter recipe's ingredients.
-  recipe.recycle_to_ingredients_of = shared.base_name
+  recipe.recycle_to_ingredients_of = v.base
   recipe.auto_recycle = nil
-  local item = data.raw.item[shared.name]
+  local item = data.raw.item[v.name]
   if item then
     recipe.order = item.order
   end
-  data.raw.recipe[shared.name] = recipe
+  data.raw.recipe[v.name] = recipe
   return true
 end
 
--- Every technology that unlocks the stack inserter also unlocks the given recipes.
-function lib.unlock_with_stack_inserter(recipe_names)
+-- Every technology that unlocks the base inserter's recipe also unlocks `recipe_names`,
+-- right after it.
+function lib.unlock_with_base(v, recipe_names)
   local wanted = {}
   for _, name in pairs(recipe_names) do wanted[name] = true end
 
   for _, technology in pairs(data.raw.technology) do
     if technology.effects then
-      local present, unlocks_stack = {}, false
+      local present, unlocks_base = {}, false
       for _, effect in pairs(technology.effects) do
         if effect.type == "unlock-recipe" then
           present[effect.recipe] = true
-          if effect.recipe == shared.base_name then unlocks_stack = true end
+          if effect.recipe == v.base then unlocks_base = true end
         end
       end
-      if unlocks_stack then
+      if unlocks_base then
         local effects = {}
         for _, effect in pairs(technology.effects) do
           table.insert(effects, effect)
-          if effect.type == "unlock-recipe" and effect.recipe == shared.base_name then
+          if effect.type == "unlock-recipe" and effect.recipe == v.base then
             for _, name in pairs(recipe_names) do
               if not present[name] then
                 table.insert(effects, {type = "unlock-recipe", recipe = name})
@@ -110,7 +127,7 @@ function lib.unlock_with_stack_inserter(recipe_names)
     end
   end
 
-  local source = data.raw.recipe[shared.base_name]
+  local source = data.raw.recipe[v.base]
   for name in pairs(wanted) do
     local recipe = data.raw.recipe[name]
     if recipe and source then
@@ -119,19 +136,18 @@ function lib.unlock_with_stack_inserter(recipe_names)
   end
 end
 
--- Smart swapping: built from, and mines to,
--- whatever builds and mines the stack inserter. Re-run in data-final-fixes so changes
--- other mods make to the stack inserter carry over.
-function lib.sync_with_stack_inserter(entity)
-  local stack = data.raw.inserter[shared.base_name]
-  if not (entity and stack) then return end
-  entity.minable = table.deepcopy(stack.minable)
-  if stack.placeable_by then
-    entity.placeable_by = table.deepcopy(stack.placeable_by)
+-- Smart swapping: built from, and mines to, whatever builds and mines the base inserter.
+-- Re-run in data-final-fixes so changes other mods make to the base carry over.
+function lib.sync_with_base(v, entity)
+  local base = data.raw.inserter[v.base]
+  if not (entity and base) then return end
+  entity.minable = table.deepcopy(base.minable)
+  if base.placeable_by then
+    entity.placeable_by = table.deepcopy(base.placeable_by)
   else
     local items = {}
     for name, item in pairs(data.raw.item) do
-      if item.place_result == shared.base_name then
+      if item.place_result == v.base then
         table.insert(items, {item = name, count = 1})
       end
     end

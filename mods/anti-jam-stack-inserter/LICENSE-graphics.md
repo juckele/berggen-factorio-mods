@@ -1,6 +1,6 @@
 The graphics in this mod are adapted from Factorio's own graphics, which are copyrighted
 by Wube Software Ltd. They are recoloured and combined from the Space Age stack inserter
-and the Factorio 1.1 filter inserter.
+and the Factorio 1.1 filter inserter, in several colours (graphics/<colour>/).
 
 They are included under the Factorio Terms of Service
 (https://factorio.com/terms-of-service), which permit works derived from Factorio assets
@@ -10,12 +10,47 @@ license (LICENSE.md) and may not be reused outside Factorio mods except as those
 
 The files are:
 
-./graphics/entity/anti-jam-stack-inserter-hand-base.png
-./graphics/entity/anti-jam-stack-inserter-hand-closed.png
-./graphics/entity/anti-jam-stack-inserter-hand-open.png
-./graphics/entity/anti-jam-stack-inserter-platform.png
-./graphics/entity/anti-jam-stack-inserter-remnants.png
-./graphics/icons/anti-jam-stack-inserter.png
-./graphics/icons/anti-jam-stack-inserter-from-stack-inserter.png
-./graphics/icons/stack-inserter-from-anti-jam-stack-inserter.png
+./graphics/aqua/entity/anti-jam-stack-inserter-hand-base.png
+./graphics/aqua/entity/anti-jam-stack-inserter-hand-closed.png
+./graphics/aqua/entity/anti-jam-stack-inserter-hand-open.png
+./graphics/aqua/entity/anti-jam-stack-inserter-platform.png
+./graphics/aqua/entity/anti-jam-stack-inserter-remnants.png
+./graphics/aqua/entity/long-anti-jam-stack-inserter-hand-base.png
+./graphics/aqua/icons/anti-jam-stack-inserter-from-stack-inserter.png
+./graphics/aqua/icons/anti-jam-stack-inserter.png
+./graphics/aqua/icons/long-anti-jam-stack-inserter.png
+./graphics/aqua/icons/long-stack-inserter.png
+./graphics/aqua/icons/stack-inserter-from-anti-jam-stack-inserter.png
+./graphics/black/entity/anti-jam-stack-inserter-hand-base.png
+./graphics/black/entity/anti-jam-stack-inserter-hand-closed.png
+./graphics/black/entity/anti-jam-stack-inserter-hand-open.png
+./graphics/black/entity/anti-jam-stack-inserter-platform.png
+./graphics/black/entity/anti-jam-stack-inserter-remnants.png
+./graphics/black/entity/long-anti-jam-stack-inserter-hand-base.png
+./graphics/black/icons/anti-jam-stack-inserter-from-stack-inserter.png
+./graphics/black/icons/anti-jam-stack-inserter.png
+./graphics/black/icons/long-anti-jam-stack-inserter.png
+./graphics/black/icons/long-stack-inserter.png
+./graphics/black/icons/stack-inserter-from-anti-jam-stack-inserter.png
+./graphics/magenta/entity/anti-jam-stack-inserter-hand-base.png
+./graphics/magenta/entity/anti-jam-stack-inserter-hand-closed.png
+./graphics/magenta/entity/anti-jam-stack-inserter-hand-open.png
+./graphics/magenta/entity/anti-jam-stack-inserter-platform.png
+./graphics/magenta/entity/anti-jam-stack-inserter-remnants.png
+./graphics/magenta/entity/long-anti-jam-stack-inserter-hand-base.png
+./graphics/magenta/icons/anti-jam-stack-inserter-from-stack-inserter.png
+./graphics/magenta/icons/anti-jam-stack-inserter.png
+./graphics/magenta/icons/long-anti-jam-stack-inserter.png
+./graphics/magenta/icons/long-stack-inserter.png
+./graphics/magenta/icons/stack-inserter-from-anti-jam-stack-inserter.png
+./graphics/purple/entity/anti-jam-stack-inserter-hand-base.png
+./graphics/purple/entity/anti-jam-stack-inserter-hand-closed.png
+./graphics/purple/entity/anti-jam-stack-inserter-hand-open.png
+./graphics/purple/entity/anti-jam-stack-inserter-platform.png
+./graphics/purple/entity/anti-jam-stack-inserter-remnants.png
+./graphics/purple/entity/long-anti-jam-stack-inserter-hand-base.png
+./graphics/purple/icons/anti-jam-stack-inserter-from-stack-inserter.png
+./graphics/purple/icons/anti-jam-stack-inserter.png
+./graphics/purple/icons/long-anti-jam-stack-inserter.png
+./graphics/purple/icons/stack-inserter-from-anti-jam-stack-inserter.png
 ./thumbnail.png
