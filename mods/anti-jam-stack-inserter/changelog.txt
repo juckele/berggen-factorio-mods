@@ -2,20 +2,19 @@
 Version: 1.1.0
 Date: 2026-10-26
   Features:
-    - Colour setting for the anti-jam stack inserter: purple, aqua, magenta or black. Automatic is purple,
-      or black when the Long Stack Inserter mod is installed.
-    - With the Long Stack Inserter mod: a long-handed anti-jam stack inserter, in every item mode,
-      with its own colour setting (automatic: aqua) and an optional recolour of the long-handed stack
-      inserter itself.
     - New item mode "Crafted upgrade": crafted from a stack inserter, a selector combinator and a processing
       unit; recycles back to them and accepts quality modules.
-    - "Yellow hand" settings: keep the stack inserter's yellow hand and only recolour the platform and arm,
-      like the long-handed stack inserter. On by default for every inserter when that mod is installed;
-      off (full recolour) otherwise.
-  Changes:
     - The anti-jam stack inserter is now the bulk inserter's default upgrade (upgrade planner with no rules),
       and downgrades to it. Can be turned off with a startup setting. Stack inserters still don't upgrade
       or downgrade.
+    - Compatiblity with the Long Stack Inserter mod: adds a long-handed anti-jam stack inserter as well.
+      - Adds color settings for anti-jam stack inserters (default purple without the Long Stack Inserter
+        mod, default black with both mods installed), long-handed stack inserter (default purple), and 
+        long-handed anti-jam stack inserter (default aqua).
+      - "Yellow hand" settings: keep the stack inserter's yellow hand and only recolour the platform and
+        arm, like the in the Long Stack Inserter mod. On by default for every stack inserter when both mod
+        are present; off (full recolour) otherwise.
+  Changes:
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.1
 Date: 2026-10-24
