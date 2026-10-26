@@ -67,6 +67,10 @@ goes back to being player-facing text for the mod portal.
   - cleared land next to the parent's explored land (weight 3): it takes the parent chunk
     bordering it, nearest the nest, with that chunk's patrol route, and finds its own way there;
   - otherwise, once 30 minutes old (weight 1): it takes the parent's edge chunk nearest the nest.
+  In both cases the chunk taken from a living parent must leave the parent's territory in one piece,
+  so a chunk on a one-chunk-wide neck is skipped for the next nearest (`hatch-no-split` test).
+  Expansion keeps territories in one piece too: a chunk only goes to a territory that owns a chunk
+  beside it.
   A hatch inside a force's radar coverage raises the game's expansion alert (the one for new
   biter bases) on the hatchling. Each hatch shrinks the parent by one chunk, so repeated hatching eventually takes a parent under
   the nesting minimum. Destroyed eggs are gone for good; the nest marker disappears with its last
@@ -210,6 +214,7 @@ Built:
 - [x] Nests: max-size demolishers travel to their territory's centre, coil, lay 1–3 eggs and return
       to patrol (`nests`, `nest-interrupt` tests).
 - [x] Hatching weighted dead parent > free space > old, one chunk per hatchling (`nests` test).
+- [x] Hatching never splits the living parent's territory (`hatch-no-split` test).
 
 Open:
 - [x] Hatchling arrival: it owns its chunk and patrol route at once and finds its own way there.

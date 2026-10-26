@@ -273,6 +273,26 @@
       ]
     },
     {
+      "name": "hatch-no-split",
+      "description": "A parent territory carved so its nest chunk sits on a one-chunk-wide neck: an old egg hatches into a chunk that leaves the parent in one piece, not the neck.",
+      "steps": [
+        {
+          "phase": "established-setup",
+          "fixture": "established-start",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 12, "build": true },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        {
+          "phase": "hatch-no-split-add",
+          "benchmark": 5,
+          "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"],
+          "expect_done": true
+        }
+      ]
+    },
+    {
       "name": "expansion-weighting",
       "description": "With a hole at a territory's centre and a gap at its edge, expansion fills the hole first in most of 30 trials.",
       "steps": [

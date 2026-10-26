@@ -852,16 +852,20 @@ end
 --   parent dead                          -> hatchling takes the nest chunk (highest weight)
 --   cleared land next to parent's land   -> hatchling takes the parent chunk next to it
 --   egg old and nowhere better to go     -> hatchling takes a parent chunk on the edge (lowest)
--- The hatchling's territory is that one chunk; it grows from there like any other.
+-- The hatchling's territory is that one chunk; it grows from there like any other. A parent chunk
+-- is only taken if the parent's territory stays in one piece without it.
 
-local function nearest_generated(surface, chunks, position)
+-- The parent chunk nearest the nest that is explored and can be given away without splitting the
+-- parent's territory in two.
+local function nearest_takeable(surface, tid, chunks, position)
   local ranked = {}
   for _, c in pairs(chunks) do
     ranked[#ranked + 1] = { c = c, d = dist(chunk_centre(c), position) }
   end
   table.sort(ranked, function(a, b) return a.d < b.d end)
   for _, entry in ipairs(ranked) do
-    if surface.is_chunk_generated(entry.c) then return entry.c end
+    local c = entry.c
+    if surface.is_chunk_generated(c) and not index.would_split(tid, c.x, c.y) then return c end
   end
   return nil
 end
@@ -909,11 +913,11 @@ local function hatch_option(surface, nest, old_enough)
   if t.count <= 1 then return 0 end
   local free = chunks_next_to_free_space(nest.parent_tid)
   if #free > 0 then
-    local chunk = nearest_generated(surface, free, nest.site)
+    local chunk = nearest_takeable(surface, nest.parent_tid, free, nest.site)
     if chunk then return T("hatch_weight_free_space"), chunk, "free_space" end
   end
   if not old_enough then return 0 end
-  local chunk = nearest_generated(surface, edge_chunks(nest.parent_tid), nest.site)
+  local chunk = nearest_takeable(surface, nest.parent_tid, edge_chunks(nest.parent_tid), nest.site)
   if chunk then return T("hatch_weight_old"), chunk, "old" end
   return 0
 end
@@ -1669,6 +1673,18 @@ remote.add_interface("vulcanus-demolisher-lifecycle", {
     tuning.set(values)
     local surface = tracked_surface()
     if surface then schedule_all(surface) end
+  end,
+  -- Testing: lay a nest for a demolisher now, at its territory's centre, without the trip. Returns
+  -- the nest chunk, or nil.
+  place_nest = function(unit_number)
+    local surface = tracked_surface()
+    local tid = index.tid_of_unit(unit_number)
+    local t = tid and index.get(tid)
+    if not (surface and index.alive(t)) then return nil end
+    local site, chunk = nest_site(surface, t)
+    if not site then return nil end
+    lay_nest(surface, { unit = t.unit, unit_number = unit_number, tid = tid, site = site, chunk = chunk })
+    return chunk
   end,
   -- Testing: clear chunks the way a dead territory is cleared (no territory, marked cleared).
   clear_chunks = function(chunks)

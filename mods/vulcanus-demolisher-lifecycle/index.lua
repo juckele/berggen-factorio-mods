@@ -131,6 +131,51 @@ function M.tid_of_territory(territory)
   return c and M.owner_at(c.x, c.y) or nil
 end
 
+local SIDES = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
+
+-- Whether taking chunk (x, y) away from territory tid would leave it in more than one piece
+-- (chunks connect through their sides). A chunk with at most one neighbour in the territory never
+-- splits it; otherwise a breadth-first search from one neighbour must reach the others without
+-- crossing (x, y). The search usually ends within a few steps, since neighbours along an edge
+-- connect through the chunk inside them.
+function M.would_split(tid, x, y)
+  local owner = I().owner
+  local removed = key(x, y)
+  local targets, n_targets, start = {}, 0, nil
+  for _, d in ipairs(SIDES) do
+    local k = key(x + d[1], y + d[2])
+    if owner[k] == tid then
+      if start then
+        targets[k] = true
+        n_targets = n_targets + 1
+      else
+        start = k
+      end
+    end
+  end
+  if n_targets == 0 then return false end
+  local seen = { [removed] = true, [start] = true }
+  local queue, head = { start }, 1
+  while queue[head] do
+    local k = queue[head]
+    head = head + 1
+    local y0 = k % 65536
+    local cx, cy = (k - y0) / 65536 - 32768, y0 - 32768
+    for _, d in ipairs(SIDES) do
+      local nk = key(cx + d[1], cy + d[2])
+      if not seen[nk] and owner[nk] == tid then
+        seen[nk] = true
+        if targets[nk] then
+          n_targets = n_targets - 1
+          if n_targets == 0 then return false end
+        end
+        queue[#queue + 1] = nk
+      end
+    end
+  end
+  return true
+end
+
 -- Centre and root-mean-square radius, in chunks.
 function M.geometry(t)
   local n = t.count

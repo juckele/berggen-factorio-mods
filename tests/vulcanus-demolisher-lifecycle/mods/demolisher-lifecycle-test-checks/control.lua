@@ -874,6 +874,88 @@ phases["lure-turret-filter-add"] = {
 -- expansion-weighting: a cleared hole at a territory's centre fills before a cleared gap at its
 -- edge.
 local ew = { hole = 0, edge = 0 }
+-- hatch-no-split: a parent territory carved so the nest chunk sits on a one-chunk-wide neck
+-- (block - W - N - E - block). An old egg must hatch into a chunk that leaves the parent in one piece.
+
+local function connected(chunks)
+  local set, start, count = {}, nil, 0
+  for _, c in pairs(chunks) do set[c.x .. "," .. c.y] = true; start = start or c; count = count + 1 end
+  if not start then return true end
+  local seen, queue, reached = { [start.x .. "," .. start.y] = true }, { start }, 1
+  local i = 1
+  while queue[i] do
+    local c = queue[i]
+    i = i + 1
+    for _, d in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+      local k = (c.x + d[1]) .. "," .. (c.y + d[2])
+      if set[k] and not seen[k] then
+        seen[k] = true
+        reached = reached + 1
+        queue[#queue + 1] = { x = c.x + d[1], y = c.y + d[2] }
+      end
+    end
+  end
+  return reached == count
+end
+
+phases["hatch-no-split-add"] = {
+  tuning = {
+    expansion_enabled = false, growth_enabled = false, nest_enabled = false, hatch_enabled = false,
+    eggs_min = 1, eggs_max = 1, egg_min_age = 0, egg_old_age = 0,
+  },
+  init = function()
+    local surface = vulcanus()
+    -- Shape relative to the nest chunk: neck W, N, E and a 2x2 block at each end.
+    local shape = { { -1, 0 }, { 0, 0 }, { 1, 0 } }
+    for _, x in ipairs({ -3, -2, 2, 3 }) do
+      for _, y in ipairs({ 0, 1 }) do shape[#shape + 1] = { x, y } end
+    end
+    local unit, nest_chunk, territory
+    for _, u in pairs(surface.get_segmented_units()) do
+      local chunks = u.territory.get_chunks()
+      if #chunks >= 30 then
+        local nc = remote.call(MOD, "place_nest", u.unit_number)
+        if nc then
+          local owned = {}
+          for _, c in pairs(chunks) do owned[c.x .. "," .. c.y] = true end
+          local fits = true
+          for _, o in ipairs(shape) do
+            local x, y = nc.x + o[1], nc.y + o[2]
+            if not (owned[x .. "," .. y] and surface.is_chunk_generated({ x, y })) then fits = false end
+          end
+          if fits then unit, nest_chunk, territory = u, nc, u.territory; break end
+        end
+      end
+    end
+    H.check("found-territory", unit ~= nil)
+    if not unit then H.done(); return end
+    local keep = {}
+    for _, o in ipairs(shape) do keep[(nest_chunk.x + o[1]) .. "," .. (nest_chunk.y + o[2])] = true end
+    local clear = {}
+    for _, c in pairs(territory.get_chunks()) do
+      if not keep[c.x .. "," .. c.y] then clear[#clear + 1] = c end
+    end
+    remote.call(MOD, "clear_chunks", clear)
+    local before = #territory.get_chunks()
+    H.equal("carved-shape", before, #shape)
+    H.check("carved-shape-connected", connected(territory.get_chunks()))
+    local hatched = run("hatch")
+    H.equal("egg-hatches", hatched, 1)
+    local after = territory.get_chunks()
+    H.equal("parent-gave-one-chunk", #after, before - 1)
+    H.check("parent-stays-in-one-piece", connected(after))
+    local still = {}
+    for _, c in pairs(after) do still[c.x .. "," .. c.y] = true end
+    local neck_kept = true
+    for _, o in ipairs({ { -1, 0 }, { 0, 0 }, { 1, 0 } }) do
+      if not still[(nest_chunk.x + o[1]) .. "," .. (nest_chunk.y + o[2])] then neck_kept = false end
+    end
+    H.check("neck-not-taken", neck_kept)
+    index_ok("index-consistent")
+    H.done()
+  end,
+}
+
 phases["expansion-weighting-add"] = {
   init = function()
     local surface = vulcanus()
