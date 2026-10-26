@@ -37,7 +37,7 @@ data:extend({
   },
 })
 
--- Only with the long-handed stack inserter mod installed.
+-- Only with the Long Stack Inserter mod installed.
 if mods["long_stack_inserter"] then
   data:extend({
     {
@@ -73,7 +73,7 @@ if mods["long_stack_inserter"] then
   })
 end
 
--- Descriptions that mention the long-handed stack inserter are only used when it's installed.
+-- Descriptions that mention the Long Stack Inserter mod are only used when it's installed.
 if lsi then
   for _, name in pairs({"anti-jam-stack-inserter-mode", "anti-jam-stack-inserter-colour", "anti-jam-stack-inserter-yellow-hand"}) do
     local setting = data.raw["string-setting"][name] or data.raw["bool-setting"][name]

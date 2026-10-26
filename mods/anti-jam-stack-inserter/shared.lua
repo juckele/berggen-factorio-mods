@@ -38,7 +38,7 @@ local LSI = "__long_stack_inserter__/graphics/"
 shared.vanilla_stack_icon = SA .. "icons/stack-inserter.png"
 
 -- The inserters this mod adds, each an anti-jam copy of a base inserter. The long-handed
--- one only exists when the long-handed stack inserter mod is installed.
+-- one only exists when the Long Stack Inserter mod is installed.
 local function variant(name, base, long)
   return {
     name = name,
@@ -54,7 +54,7 @@ if mods[shared.lsi_mod] then
 end
 
 -- Resolves a colour setting. "automatic" means:
---   anti-jam stack inserter: black if the long-handed stack inserter is installed (its
+--   anti-jam stack inserter: black if the Long Stack Inserter mod is installed (its
 --     purple is taken), otherwise purple
 --   long-handed anti-jam stack inserter: aqua
 --   long-handed stack inserter: nil (its own graphics, unchanged)
@@ -72,8 +72,8 @@ function shared.colour(name)
 end
 
 -- Resolves a "yellow hand" setting: keep the vanilla yellow claw (the long-handed stack
--- inserter's style) instead of recolouring it. Defaults to on when the long-handed stack
--- inserter is installed, otherwise off.
+-- inserter's style) instead of recolouring it. Defaults to on when the Long Stack Inserter
+-- mod is installed, otherwise off.
 function shared.yellow(name)
   local setting = settings.startup[shared.yellow_settings[name]]
   if setting then return setting.value end

@@ -10,7 +10,7 @@ license (LICENSE.md) and may not be reused outside Factorio mods except as those
 
 The long-handed stack inserter recolours (graphics/*/entity/long-stack-inserter-*.png and
 graphics/*/icons/long-stack-inserter*.png) are recoloured from the graphics of snouz's
-Long-handed stack inserter mod (https://mods.factorio.com/mod/long_stack_inserter, MIT
+Long Stack Inserter mod (https://mods.factorio.com/mod/long_stack_inserter, MIT
 license), which are themselves adapted from Factorio's graphics.
 
 The files are:

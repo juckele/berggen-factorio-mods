@@ -1,5 +1,5 @@
 -- Each anti-jam inserter and the base inserter it's built from. The long-handed pair only
--- exists with the long-handed stack inserter mod; unknown names simply never match.
+-- exists with the Long Stack Inserter mod; unknown names simply never match.
 local BASE_OF = {
   ["anti-jam-stack-inserter"] = "stack-inserter",
   ["long-anti-jam-stack-inserter"] = "long-stack-inserter",

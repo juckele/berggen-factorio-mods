@@ -3,8 +3,8 @@ Version: 1.1.0
 Date: 2026-10-26
   Features:
     - Colour setting for the anti-jam stack inserter: purple, aqua, magenta or black. Automatic is purple,
-      or black when the Long-handed stack inserter mod is installed.
-    - With the Long-handed stack inserter mod: a long-handed anti-jam stack inserter, in every item mode,
+      or black when the Long Stack Inserter mod is installed.
+    - With the Long Stack Inserter mod: a long-handed anti-jam stack inserter, in every item mode,
       with its own colour setting (automatic: aqua) and an optional recolour of the long-handed stack
       inserter itself.
     - New item mode "Crafted upgrade": crafted from a stack inserter, a selector combinator and a processing

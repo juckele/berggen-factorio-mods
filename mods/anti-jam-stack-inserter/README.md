@@ -72,16 +72,16 @@ downgrade.
 
 A startup setting picks the anti-jam stack inserter's colour: purple, aqua, magenta or black.
 **Automatic** (the default) is purple, or black when the
-[Long-handed stack inserter](https://mods.factorio.com/mod/long_stack_inserter) mod is
+[Long Stack Inserter](https://mods.factorio.com/mod/long_stack_inserter) mod is
 installed, since that inserter is purple too.
 
 **Yellow hand** keeps the stack inserter's yellow hand and only recolours the platform and
 arm, the way the long-handed stack inserter looks. It's off by default (the whole inserter
-is recoloured), and on by default when the long-handed stack inserter mod is installed.
+is recoloured), and on by default when the Long Stack Inserter mod is installed.
 
-## Long-handed stack inserter
+## Long Stack Inserter
 
-With the [Long-handed stack inserter](https://mods.factorio.com/mod/long_stack_inserter) mod
+With the [Long Stack Inserter](https://mods.factorio.com/mod/long_stack_inserter) mod
 installed, you also get a **long-handed anti-jam stack inserter**: the long-handed stack
 inserter's reach, without waiting for a full hand. It works like the anti-jam stack inserter
 in every item mode, with the long-handed stack inserter in place of the stack inserter: smart
@@ -108,5 +108,5 @@ classic filter inserter, © Wube Software Ltd., and included under the Factorio 
 Service. They aren't covered by this mod's MIT license; see `LICENSE-graphics.md`.
 
 The long-handed variants follow the look of snouz's
-[Long-handed stack inserter](https://mods.factorio.com/mod/long_stack_inserter), and its
+[Long Stack Inserter](https://mods.factorio.com/mod/long_stack_inserter), and its
 recolours are made from that mod's graphics (MIT licensed, themselves adapted from Factorio).
