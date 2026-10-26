@@ -12,8 +12,11 @@ tools/upload_mod.py clean-sushi --dry-run
 # Same, without touching the network at all
 tools/upload_mod.py clean-sushi --dry-run --offline
 
-# Upload (asks for confirmation first)
+# Upload (asks for confirmation first); also sets the portal description from README.md
 FACTORIO_API_KEY=... tools/upload_mod.py clean-sushi
+
+# Only update the portal description from README.md, no new release
+FACTORIO_API_KEY=... tools/upload_mod.py clean-sushi --details-only
 
 # Publish a mod that isn't on the portal yet (asks for confirmation first)
 FACTORIO_API_KEY=... tools/upload_mod.py anti-jam-stack-inserter --publish
@@ -48,9 +51,20 @@ zip it sends:
   `default_mit` when the mod's LICENSE file is MIT. Allowed values are listed on the
   [Mod details API](https://wiki.factorio.com/Mod_details_API) page.
 
+### Portal description
+
+Uploading a release only sends the zip; the portal never reads the README inside it. So after
+a successful upload the script sets the mod's portal description to its `README.md` through
+the [Mod details API](https://wiki.factorio.com/Mod_details_API) (`edit_details`). Pass
+`--skip-details` to leave the description alone. If that step fails, the release is still
+uploaded and the script prints a warning; rerun with `--details-only` to retry.
+`--details-only` updates the description without packaging or uploading anything (it still
+refuses uncommitted changes unless `--allow-dirty`).
+
 ### API key
 
 Create a key at <https://factorio.com/profile> with the **ModPortal: Upload Mods** usage (and
-**ModPortal: Publish Mods** for `--publish`), then either export it as `FACTORIO_API_KEY` or put
+**ModPortal: Publish Mods** for `--publish`, and **ModPortal: Edit Mods** for the portal
+description), then either export it as `FACTORIO_API_KEY` or put
 it in a file and pass `--api-key-file PATH`. The key is intentionally not accepted as a
 command-line argument.

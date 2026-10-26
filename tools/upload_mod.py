@@ -5,14 +5,16 @@ of an existing mod or (with --publish) as a brand-new mod.
 Usage:
     tools/upload_mod.py <mod> [--dry-run] [--yes] [--allow-dirty] [--dist DIR]
     tools/upload_mod.py <mod> --publish [--category C] [--license L] [...]
+    tools/upload_mod.py <mod> --details-only [--yes] [--allow-dirty]
 
 <mod> is either a directory name under mods/ (e.g. "clean-sushi") or a path to a
 mod directory containing info.json.
 
 The portal API key is read from the FACTORIO_API_KEY environment variable, or
 from the file given with --api-key-file. Create a key at
-https://factorio.com/profile with the "ModPortal: Upload Mods" usage (and
-"ModPortal: Publish Mods" for --publish). The key is
+https://factorio.com/profile with the "ModPortal: Upload Mods" usage,
+"ModPortal: Publish Mods" for --publish, and "ModPortal: Edit Mods" to update the
+portal description. The key is
 deliberately not accepted as a command-line argument, so it does not end up in
 shell history.
 
@@ -32,12 +34,18 @@ What it does, in order:
      category and license (from --category/--license, or "package": {"category": ...,
      "license": ...} in info.json; the license defaults to MIT if the mod's LICENSE
      file is MIT).
+  7. After a release upload, sets the portal description to the mod's README.md via
+     edit_details (skip with --skip-details). A release upload alone never changes the
+     description; only publishing and edit_details do.
+
+--details-only skips packaging and uploading and only updates the portal description.
 
 --dry-run stops after step 5 (and skips the network entirely if combined with
 --offline).
 
 API reference: https://wiki.factorio.com/Mod_upload_API
                https://wiki.factorio.com/Mod_publish_API
+               https://wiki.factorio.com/Mod_details_API
 """
 
 from __future__ import annotations
@@ -62,6 +70,7 @@ DEFAULT_DIST = REPO_ROOT / "dist"
 PORTAL = "https://mods.factorio.com"
 INIT_UPLOAD_URL = f"{PORTAL}/api/v2/mods/releases/init_upload"
 INIT_PUBLISH_URL = f"{PORTAL}/api/v2/mods/init_publish"
+EDIT_DETAILS_URL = f"{PORTAL}/api/v2/mods/edit_details"
 SOURCE_URL_BASE = "https://github.com/juckele/berggen-factorio-mods/tree/main/mods"
 
 # https://wiki.factorio.com/Mod_details_API
@@ -256,6 +265,12 @@ def _request(req: urllib.request.Request) -> dict:
         raise UploadError(f"non-JSON response from {req.full_url}: {body[:500]!r}") from e
 
 
+def check_portal_exists(name: str) -> None:
+    data = _request(urllib.request.Request(f"{PORTAL}/api/mods/{name}"))
+    if data.get("_status") == 404 or "releases" not in data:
+        raise UploadError(f"'{name}' was not found on the mod portal; publish it first with --publish")
+
+
 def check_portal_versions(name: str, version: str, publish: bool) -> None:
     data = _request(urllib.request.Request(f"{PORTAL}/api/mods/{name}"))
     if data.get("_status") == 404 or "releases" not in data:
@@ -306,12 +321,17 @@ def publish_metadata(mod_dir: Path, info: dict, category: str | None, license_: 
     if license_ not in LICENSES and not re.match(r"^custom_[0-9a-f]+$", license_):
         raise UploadError(f"unknown license '{license_}'; one of: {', '.join(LICENSES)}, or custom_<id>")
     fields = {"category": category, "license": license_, "source_url": f"{SOURCE_URL_BASE}/{mod_dir.name}"}
-    readme = mod_dir / "README.md"
-    if readme.is_file():
-        fields["description"] = readme.read_text(encoding="utf-8")
+    readme = read_readme(mod_dir)
+    if readme is not None:
+        fields["description"] = readme
     else:
         print("warning: no README.md; the portal description will be empty")
     return fields
+
+
+def read_readme(mod_dir: Path) -> str | None:
+    readme = mod_dir / "README.md"
+    return readme.read_text(encoding="utf-8") if readme.is_file() else None
 
 
 def encode_multipart(fields: dict[str, str], files: dict[str, Path]) -> tuple[bytes, str]:
@@ -353,6 +373,16 @@ def upload(name: str, zip_path: Path, api_key: str, publish_fields: dict[str, st
         raise portal_error("finish_upload", data)
 
 
+def edit_details(name: str, api_key: str, fields: dict[str, str]) -> None:
+    body, ctype = encode_multipart({"mod": name, **fields}, {})
+    req = urllib.request.Request(EDIT_DETAILS_URL, data=body, method="POST")
+    req.add_header("Authorization", f"Bearer {api_key}")
+    req.add_header("Content-Type", ctype)
+    data = _request(req)
+    if not data.get("success"):
+        raise portal_error("edit_details", data)
+
+
 # ---------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
@@ -367,18 +397,29 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--publish", action="store_true", help="publish a mod that isn't on the portal yet")
     p.add_argument("--category", help=f"with --publish: portal category ({', '.join(CATEGORIES)})")
     p.add_argument("--license", dest="license_", help="with --publish: portal license (default_mit, ..., custom_<id>)")
+    p.add_argument("--details-only", action="store_true",
+                   help="only set the portal description from README.md; no packaging or upload")
+    p.add_argument("--skip-details", action="store_true",
+                   help="upload the release without updating the portal description")
     args = p.parse_args(argv)
 
     if args.offline and not args.dry_run:
         p.error("--offline only makes sense with --dry-run")
     if (args.category or args.license_) and not args.publish:
         p.error("--category and --license only apply with --publish")
+    if args.details_only and (args.publish or args.skip_details or args.offline):
+        p.error("--details-only can't be combined with --publish, --skip-details or --offline")
+    if args.skip_details and args.publish:
+        p.error("--skip-details doesn't apply to --publish (publishing always sends README.md)")
 
     try:
         mod_dir = resolve_mod_dir(args.mod)
         info = load_info(mod_dir)
         name, version = info["name"], info["version"]
         print(f"{info['title']} ({name}) {version} for Factorio {info['factorio_version']}")
+
+        if args.details_only:
+            return update_details_only(mod_dir, name, args)
 
         check_changelog(mod_dir, version)
         if not args.allow_dirty:
@@ -408,11 +449,45 @@ def main(argv: list[str] | None = None) -> int:
 
         upload(name, zip_path, api_key, publish_fields)
         print(f"{'Published' if args.publish else 'Uploaded'} {name} {version}: {PORTAL}/mod/{name}")
+        if not args.publish and not args.skip_details:
+            readme = read_readme(mod_dir)
+            if readme is None:
+                print("warning: no README.md; portal description left as it was")
+            else:
+                try:
+                    edit_details(name, api_key, {"description": readme})
+                    print(f"Updated the portal description from README.md ({len(readme)} characters)")
+                except UploadError as e:
+                    # The release is already up; don't report the whole run as failed.
+                    print(f"warning: release uploaded, but the description wasn't updated: {e}\n"
+                          f"    retry with: tools/upload_mod.py {mod_dir.name} --details-only", file=sys.stderr)
         print(f"Suggested: git tag {name}/{version} && git push origin {name}/{version}")
         return 0
     except UploadError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
+
+
+def update_details_only(mod_dir: Path, name: str, args: argparse.Namespace) -> int:
+    readme = read_readme(mod_dir)
+    if readme is None:
+        raise UploadError("no README.md to send as the portal description")
+    if not args.allow_dirty:
+        check_git_clean(mod_dir)
+    api_key = None if args.dry_run else read_api_key(args.api_key_file)
+    check_portal_exists(name)
+    print(f"Portal description: {len(readme)} characters from README.md")
+    if args.dry_run:
+        print("Dry run: not updating.")
+        return 0
+    if not args.yes:
+        answer = input(f"Replace the portal description of {name} with README.md? [y/N] ").strip().lower()
+        if answer not in ("y", "yes"):
+            print("Aborted.")
+            return 1
+    edit_details(name, api_key, {"description": readme})
+    print(f"Updated the portal description of {name}: {PORTAL}/mod/{name}")
+    return 0
 
 
 if __name__ == "__main__":
