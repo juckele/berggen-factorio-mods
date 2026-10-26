@@ -313,6 +313,49 @@
       ]
     },
     {
+      "name": "perf-setup",
+      "description": "Performance: the ticks after Vulcanus is created, while the mod sets up (territory index, safe zone, clocks).",
+      "steps": [
+        { "phase": "perf-setup-create", "create": { "seed": 12345 }, "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-checks"], "expect_done": true },
+        { "phase": "perf-setup-run", "benchmark": 120, "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-checks"], "expect_done": true,
+          "perf": {} }
+      ]
+    },
+    {
+      "name": "perf-steady",
+      "description": "Performance at map-settings timing on a larger map (radius 24, 6 demolishers killed, a base, vibration hotspots, evolution 0.5), 5 minutes of game time.",
+      "settings": { "demolisher-lifecycle-expansion-interval-ticks": 0 },
+      "steps": [
+        {
+          "phase": "big-setup",
+          "fixture": "big-start",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 24, "build": true, "kill": 6 },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        { "phase": "perf-steady-add", "benchmark": 18000, "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"], "expect_done": true,
+          "perf": { "avg_ms": 0.5, "max_ms": 16, "skip_end": 20 } }
+      ]
+    },
+    {
+      "name": "perf-stress",
+      "description": "Performance with every clock firing every 10 ticks and low thresholds on the larger map: growth, nests, hatching, expansion into cleared land and wrecking all running, plus kills.",
+      "settings": { "demolisher-lifecycle-expansion-interval-ticks": 10 },
+      "steps": [
+        {
+          "phase": "big-setup",
+          "fixture": "big-start",
+          "create": { "seed": 12345 },
+          "params": { "vulcanus_radius": 24, "build": true, "kill": 6 },
+          "mods": ["demolisher-lifecycle-test-setup"],
+          "expect_done": true
+        },
+        { "phase": "perf-stress-add", "benchmark": 12000, "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-setup", "demolisher-lifecycle-test-checks"], "expect_done": true,
+          "perf": { "avg_ms": 1, "max_ms": 16, "skip_end": 20 } }
+      ]
+    },
+    {
       "name": "killed",
       "description": "Demolishers killed before the mod is added: their territories are removed and marked cleared, living neighbours expand into the land (explored or not) at the default rate, and exploring it spawns nothing.",
       "steps": [

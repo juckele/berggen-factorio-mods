@@ -48,6 +48,12 @@ local function generate(chunks)
   surface.force_generate_chunk_requests()
 end
 
+-- The mod's territory index must match the game's territories.
+local function index_ok(name)
+  local problems = remote.call(MOD, "verify_index")
+  H.check(name, #problems == 0, #problems == 0 and "consistent" or serpent.line(problems))
+end
+
 -- What should hold right after the mod sets up on a Vulcanus surface.
 local function check_initialized(prefix)
   local s = state()
@@ -56,6 +62,7 @@ local function check_initialized(prefix)
   H.check(prefix .. "-safe-zone-recorded", s.safe_chunk_count > 100, s.safe_chunk_count .. " safe chunks")
   H.equal(prefix .. "-safe-zone-has-no-territory", safe_in_territory(), 0)
   H.equal(prefix .. "-no-dead-territories", dead_territories(), 0)
+  index_ok(prefix .. "-index-consistent")
   local spawn = game.forces.player.get_spawn_position(vulcanus())
   H.check(prefix .. "-spawn-is-safe",
     remote.call(MOD, "is_safe_chunk", math.floor(spawn.x / 32), math.floor(spawn.y / 32)))
@@ -73,10 +80,12 @@ phases["new-game-create"] = {
     local s = state()
     H.check("no-vulcanus-yet", vulcanus() == nil)
     H.check("not-initialized-without-vulcanus", not s.initialized)
-    H.equal("schema", s.schema, 3)
+    H.equal("schema", s.schema, 4)
     H.done()
   end,
 }
+
+local SETUP = 20
 
 phases["new-game-run"] = {
   ticks = function()
@@ -86,10 +95,13 @@ phases["new-game-run"] = {
       surface.request_to_generate_chunks({ 0, 0 }, 12)
       surface.force_generate_chunk_requests()
     end)
-    H.at(2, function()
+    -- Set-up is spread over a few ticks when Vulcanus is created during play.
+    H.at(2, function() H.check("setting-up", state().setting_up) end)
+    H.at(SETUP, function()
       check_initialized("on-surface-created")
       local s = state()
-      H.equal("initialized-on-creation-tick", s.initialized_tick, game.tick - 1)
+      H.check("initialized-within-setup-ticks", s.initialized_tick and s.initialized_tick - 1 < SETUP,
+        tostring(s.initialized_tick and s.initialized_tick - 1) .. " ticks")
       -- Pick a demolisher outside the starting area, nearest the spawn.
       local best, best_d
       for _, unit in pairs(vulcanus().get_segmented_units()) do
@@ -105,8 +117,8 @@ phases["new-game-run"] = {
       victim = { unit = best, chunks = chunks, ungenerated = ungenerated, territories = #surface.get_territories() }
       H.info("victim", best.prototype.name .. ", " .. #chunks .. " chunks, " .. #ungenerated .. " ungenerated")
     end)
-    H.at(3, function() victim.unit.die() end)
-    H.at(5, function()
+    H.at(SETUP + 1, function() victim.unit.die() end)
+    H.at(SETUP + 3, function()
       local s = state()
       H.equal("kill-clears-territory", s.stats.territories_cleared, 1)
       H.equal("kill-territory-count", #vulcanus().get_territories(), victim.territories - 1)
@@ -117,11 +129,11 @@ phases["new-game-run"] = {
       victim.units = #vulcanus().get_segmented_units()
       generate(victim.ungenerated)
     end)
-    H.at(6, function()
+    H.at(SETUP + 4, function()
       H.equal("cleared-land-no-new-territories", #vulcanus().get_territories(), victim.territories - 1)
       H.equal("cleared-land-no-new-demolishers", #vulcanus().get_segmented_units(), victim.units)
     end)
-    H.at(2300, function()
+    H.at(SETUP + 2300, function()
       local s = state()
       H.info("final-stats", s.stats)
       H.equal("all-cleared-land-taken", chunks_with_territory(victim.chunks), #victim.chunks)
@@ -129,6 +141,7 @@ phases["new-game-run"] = {
       H.equal("chunks-taken", s.stats.cleared_chunks_taken, #victim.chunks)
       H.equal("expansion-spawns-no-demolishers", #vulcanus().get_segmented_units(), victim.units)
       H.equal("protected-safe-zone-stays-safe", safe_in_territory(), 0)
+      index_ok("index-consistent")
       H.check("safe-zone-blocked-expansion", s.stats.expansions_blocked_by_safe_zone > 0,
         s.stats.expansions_blocked_by_safe_zone .. " blocked attempts")
       H.done()
@@ -465,6 +478,7 @@ phases["nests-add"] = {
         H.equal("nest-marker-removed", vulcanus().count_entities_filtered({ name = "demolisher-nest" }), 0)
         H.equal("reservation-released", state().reserved_chunk_count, 0)
         H.equal("no-dead-territories", dead_territories(), 0)
+      index_ok("index-consistent")
         t.finished = true
         H.done()
       end
@@ -502,6 +516,7 @@ phases["nests-natural-add"] = {
       for _, t in pairs(vulcanus().get_territories()) do if #t.get_segmented_units() > 1 then multi = multi + 1 end end
       H.equal("no-shared-territories", multi, 0)
       H.equal("no-dead-territories", dead_territories(), 0)
+      index_ok("index-consistent")
       local eggs = vulcanus().count_entities_filtered({ name = "demolisher-egg" })
       H.equal("egg-entities-match-state", eggs, s.egg_count)
       H.equal("nest-markers-match-state", vulcanus().count_entities_filtered({ name = "demolisher-nest" }), s.nest_count)
@@ -968,6 +983,88 @@ phases["wreck-add"] = {
 }
 
 ---------------------------------------------------------------------------------------------------
+-- Performance phases. These only set up state; the runner measures scriptUpdate per tick and
+-- checks the limits in tests.json. Keep per-tick work in this mod to a single scheduled check.
+
+-- Vibration hotspots in some explored territory chunks, so the vibration check has work to do.
+-- Set params.profile in tests.json (or edit here) to log per-event timings while investigating.
+local PROFILE = H.params.profile or false
+
+local function add_hotspots(count)
+  local surface, added = vulcanus(), 0
+  for _, territory in pairs(surface.get_territories()) do
+    for _, c in pairs(territory.get_chunks()) do
+      if added < count and surface.is_chunk_generated(c) then
+        surface.pollute({ c.x * 32 + 16, c.y * 32 + 16 }, 200)
+        added = added + 1
+        break
+      end
+    end
+  end
+  return added
+end
+
+local function perf_report(ticks)
+  H.at(ticks, function()
+    local s = state()
+    H.info("perf-stats", s.stats)
+    H.info("perf-world", #vulcanus().get_segmented_units() .. " demolishers, " .. #vulcanus().get_territories() ..
+      " territories, " .. s.cleared_chunk_count .. " cleared chunks, " .. s.nest_count .. " nests, " .. s.trip_count .. " trips")
+    index_ok("index-consistent")
+    H.done()
+  end)
+end
+
+phases["perf-steady-add"] = {
+  tuning = { profile = PROFILE },
+  init = function()
+    game.forces.enemy.set_evolution_factor(0.5, vulcanus())
+    H.info("hotspots", add_hotspots(12))
+  end,
+  ticks = function() perf_report(17990) end,
+}
+
+phases["perf-stress-add"] = {
+  tuning = { profile = PROFILE,
+    growth_midpoint = { ["medium-demolisher"] = 1, ["big-demolisher"] = 1 },
+    growth_width = 0.001, growth_tiers_above_native = 2,
+    nest_min_chunks = 1, nest_build_ticks = 60,
+    egg_min_age = 300, egg_old_age = 1200,
+  },
+  init = function()
+    H.info("hotspots", add_hotspots(12))
+  end,
+  ticks = function()
+    H.at(3000, function()
+      local killed = 0
+      for _, unit in pairs(vulcanus().get_segmented_units()) do
+        if killed < 4 and #unit.territory.get_chunks() > 1 then unit.die(); killed = killed + 1 end
+      end
+    end)
+    perf_report(11990)
+  end,
+}
+
+-- The one-off setup when Vulcanus is created mid-game runs inside a tick, so it's measured here.
+-- Vulcanus is created in the create step, so the engine's own surface creation stays out of the
+-- measured ticks; the mod's set-up job runs during them.
+phases["perf-setup-run"] = {
+  ticks = function()
+    H.at(100, function()
+      H.check("initialized", state().initialized)
+      H.done()
+    end)
+  end,
+}
+phases["perf-setup-create"] = {
+  tuning = { profile = PROFILE },
+  init = function()
+    game.planets.vulcanus.create_surface()
+    H.done()
+  end,
+}
+
+---------------------------------------------------------------------------------------------------
 -- killed: demolishers were killed before the mod was added.
 
 phases["killed-add"] = {
@@ -1016,6 +1113,7 @@ phases["killed-add"] = {
       H.equal("no-new-demolishers", #vulcanus().get_segmented_units(), record.unit_count)
       H.equal("no-new-territories", #vulcanus().get_territories(), record.territory_count - #record.killed)
       H.equal("no-dead-territories", dead_territories(), 0)
+      index_ok("index-consistent")
       H.done()
     end)
   end,

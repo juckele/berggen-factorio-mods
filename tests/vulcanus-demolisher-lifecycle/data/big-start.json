@@ -1,0 +1,17 @@
+{
+  "key": "7464aae690fee0cabad9fb8cc24b65b63e3a548dec830fb24ab6d3037b32a644",
+  "factorio": "2.1.23",
+  "output": [
+    "TEST PASS setup-built-base :: 25 entities placed",
+    "TEST PASS vanilla-territory-survives-kill-1 :: small-demolisher killed, territory valid=true",
+    "TEST PASS vanilla-territory-survives-kill-2 :: small-demolisher killed, territory valid=true",
+    "TEST PASS vanilla-territory-survives-kill-3 :: small-demolisher killed, territory valid=true",
+    "TEST PASS vanilla-territory-survives-kill-4 :: small-demolisher killed, territory valid=true",
+    "TEST PASS vanilla-territory-survives-kill-5 :: small-demolisher killed, territory valid=true",
+    "TEST PASS vanilla-territory-survives-kill-6 :: small-demolisher killed, territory valid=true",
+    "TEST PASS setup-killed-count :: expected 6, got 6",
+    "TEST INFO setup-territories :: 35",
+    "TEST INFO setup-demolishers :: 29",
+    "TEST DONE big-setup"
+  ]
+}

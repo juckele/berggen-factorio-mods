@@ -57,10 +57,29 @@ local function point_at(path, s)
   return { x = points[lo].x + (points[hi].x - points[lo].x) * f, y = points[lo].y + (points[hi].y - points[lo].y) * f }
 end
 
--- Body nodes, head first, with the head at arc length s.
+-- Body nodes, head first, with the head at arc length s. Runs every tick while coiling, so it finds
+-- the head's segment once and walks back along the path from there.
 function M.nodes_at(path, s, count)
-  local nodes = {}
-  for i = 0, count - 1 do nodes[#nodes + 1] = point_at(path, s - i) end
+  local points, cum = path.points, path.cum
+  local nodes = { point_at(path, s) }
+  local lo = 1
+  local hi = #cum
+  while hi - lo > 1 do
+    local mid = math.floor((lo + hi) / 2)
+    if cum[mid] <= s then lo = mid else hi = mid end
+  end
+  for i = 1, count - 1 do
+    local t = s - i
+    if t <= 0 then
+      nodes[i + 1] = points[1]
+    else
+      while lo > 1 and cum[lo] > t do lo = lo - 1 end
+      local a, b = points[lo], points[lo + 1]
+      local span = cum[lo + 1] - cum[lo]
+      local f = span > 0 and (t - cum[lo]) / span or 0
+      nodes[i + 1] = { x = a.x + (b.x - a.x) * f, y = a.y + (b.y - a.y) * f }
+    end
+  end
   return nodes
 end
 

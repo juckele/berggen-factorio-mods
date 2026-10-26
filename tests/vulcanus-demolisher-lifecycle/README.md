@@ -22,6 +22,9 @@ Takes about 2.5 minutes on Factorio 2.1. Runner docs: [`tools/headless`](../../t
 | `lure-turret-filter` | Priority list of just `big-demolisher` with other targets ignored: no shots and no shells used near small demolishers; switched to `small-demolisher`: it pings small ones and nothing else. |
 | `expansion-weighting` | A cleared hole at a territory's centre and a cleared gap at its edge: in at least 24 of 30 trials (29 when written) expansion fills the hole first. |
 | `wreck` | A neighbour is killed and player buildings (walls, chest, pole, solar panel, no vibration) put on its land next to another territory; when that territory expands over them, the mod sends its demolisher, which destroys them all. |
+| `perf-setup` | Vulcanus created in the create step; the ticks while the mod sets up are measured and reported only (a slow set-up tick is acceptable). |
+| `perf-steady` | `data/big-start.zip` (radius-24 Vulcanus, a base, 6 demolishers killed) plus vibration hotspots and evolution 0.5; map-settings timing for 5 minutes. Limits: average 0.5 ms, worst tick 16 ms (script time, last 20 ticks excluded where the checks run). |
+| `perf-stress` | Same save, every clock every 10 ticks with low thresholds so growth, nesting, hatching, expansion and wrecking all run, and 4 kills at tick 3000. Limits: average 1 ms, worst tick 16 ms. |
 | `killed` | Save where 3 demolishers were killed before the mod was added. Also checks the vanilla behaviour the mod builds on (a territory stays after its last demolisher dies). On add, the dead territories are removed and marked cleared; at the default rate, neighbours expand into all of it, including unexplored chunks, and exploring those afterwards spawns nothing new. |
 
 ## Layout
@@ -36,8 +39,8 @@ Takes about 2.5 minutes on Factorio 2.1. Runner docs: [`tools/headless`](../../t
 
 - `data/no-enemies-start.zip`: fixture save for `no-enemies`, from `data/no-enemies-map-gen-settings.json`
   (the game's example map-gen settings with `no_enemies_mode` on).
-- `data/established-start.zip`, `data/killed-start.zip`: fixture saves from the setup steps of
-  `established` (also used by `unprotected`, `map-settings` and the nest and vibration scenarios) and `killed` (Vulcanus generated, base built or demolishers killed, mod not installed), to
+- `data/established-start.zip`, `data/killed-start.zip`, `data/big-start.zip`: fixture saves from the setup steps of
+  `established` (also used by `unprotected`, `map-settings` and the nest and vibration scenarios), `killed` and the perf scenarios (Vulcanus generated, base built or demolishers killed, mod not installed), to
   skip ~14 s of generation each. They depend only on Factorio, the setup mod and the harness, and
   the runner rebuilds them when any of those change; commit the rebuilt files. `new-game` creates its
   save each run, since it starts before Vulcanus exists (~5 s).

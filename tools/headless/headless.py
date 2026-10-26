@@ -350,7 +350,13 @@ def run_scenario(spec, scenario, binary, version, work, verbose, refresh_fixture
             code, output = run_process(args, log_path, timeout)
         elif "benchmark" in step:
             args = run_dir.base_args() + ["--benchmark", str(save), "--benchmark-ticks", str(step["benchmark"])]
+            if "perf" in step:
+                # Factorio 2.1.23 crashes (SIGSEGV after the first tick) when given a subset of
+                # timings, so ask for all of them and pick the column out.
+                args += ["--benchmark-verbose", "all"]
             code, output = run_process(args, log_path, timeout)
+            if "perf" in step:
+                check_perf(step["perf"], output, result)
         elif "server" in step:
             code, output = run_server_step(run_dir, save, step["server"], log_path, result)
         else:
@@ -397,9 +403,53 @@ def run_server_step(run_dir, save, server_spec, log_path, result):
     return server.proc.returncode or 0, Path(log_path).read_text(errors="replace")
 
 
+def tick_timings(output, column):
+    """Per-tick values (ms) of one --benchmark-verbose column, in tick order."""
+    header, values = None, []
+    for line in output.splitlines():
+        if line.startswith("tick,"):
+            header = line.rstrip(",").split(",")
+        elif header and re.match(r"^t\d+,", line):
+            row = line.rstrip(",").split(",")
+            values.append(int(row[header.index(column)]) / 1e6)
+    return values
+
+
+def check_perf(spec, output, result):
+    """Perf limits for a benchmark step:
+    {"column": "scriptUpdate", "skip": 0, "skip_end": 0, "max_ms": 16, "avg_ms": 1, "p99_ms": ...}
+    "skip" ignores the first N ticks (e.g. one-off setup measured by another step), "skip_end" the
+    last N (e.g. where the test mod runs its own expensive checks)."""
+    column = spec.get("column", "scriptUpdate")
+    values = tick_timings(output, column)
+    values = values[spec.get("skip", 0):len(values) - spec.get("skip_end", 0)]
+    if not values:
+        result.fails.append(("perf", f"no {column} timings in the benchmark output"))
+        return
+    ordered = sorted(values)
+    avg = sum(values) / len(values)
+    p99 = ordered[min(len(ordered) - 1, int(len(ordered) * 0.99))]
+    worst = max(values)
+    worst_tick = values.index(worst) + spec.get("skip", 0)
+    top = sorted(range(len(values)), key=lambda i: values[i], reverse=True)[:5]
+    slowest = ", ".join(f"{values[i]:.1f}@{i + spec.get('skip', 0)}" for i in top)
+    summary = (f"{column} over {len(values)} ticks: avg {avg:.3f} ms, p99 {p99:.3f} ms, max {worst:.3f} ms "
+               f"(tick {worst_tick}); slowest ms@tick: {slowest}")
+    result.infos.append(("perf", summary))
+    result.perf = {"avg": avg, "p99": p99, "max": worst, "ticks": len(values)}
+    for key, value in (("avg_ms", avg), ("p99_ms", p99), ("max_ms", worst)):
+        if key in spec:
+            limit = spec[key]
+            (result.passes if value <= limit else result.fails).append(
+                (f"perf-{key[:-3]}", f"{value:.3f} ms (limit {limit} ms)"))
+
+
 def print_step(scenario, result, log_path, verbose):
     status = "ok" if result.ok else "FAILED"
     print(f"  {scenario} / {result.name}: {status} ({len(result.passes)} passed, {len(result.fails)} failed)")
+    for name, detail in result.infos:
+        if name == "perf" and not verbose:
+            print(f"      perf {detail}")
     if verbose:
         for name, detail in result.passes:
             print(f"      pass {name}" + (f" :: {detail}" if detail else ""))

@@ -88,6 +88,15 @@ Step actions:
   scenarios with different settings can share one fixture by repeating the same step.
 - `benchmark`: `--benchmark` the scenario's save for N ticks. Fast, but **changes are not saved**:
   every later step starts again from the last saved state.
+  - Add `"perf": {"avg_ms": 1, "max_ms": 16, "p99_ms": 4, "skip": 0, "skip_end": 0, "column": "scriptUpdate"}`
+    to measure per-tick time from `--benchmark-verbose all`. All keys are optional; with no limits
+    the step just reports.
+  - `scriptUpdate` is all mods' script time, the test mod's included. Use `skip` and `skip_end` to
+    leave out ticks where the test mod does expensive checks.
+  - The runner prints the average, p99, maximum and the five slowest ticks, and fails any limit that
+    is exceeded.
+  - Factorio 2.1.23 crashes if `--benchmark-verbose` is given a column list, so the runner always
+    passes `all`.
 - `server`: start a server on the save, run RCON actions (`wait` N ticks, `lua` with an optional
   mod `context` and `expect` regex), then save (`"save": false` to skip). Runs in real time (60
   ticks per second), so keep waits short. Use it when a step must persist state or change settings.

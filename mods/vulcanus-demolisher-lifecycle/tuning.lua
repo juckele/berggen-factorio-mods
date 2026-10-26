@@ -64,6 +64,9 @@ local defaults = {
   hatch_weight_dead_parent = 10,
   hatch_weight_free_space = 3,
   hatch_weight_old = 1,
+
+  -- Log a timer around each event and periodic job ("PROFILE <name> Duration: ...ms").
+  profile = false,
 }
 
 local M = { defaults = defaults }

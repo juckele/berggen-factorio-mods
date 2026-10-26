@@ -116,7 +116,45 @@ goes back to being player-facing text for the mod portal.
 
 Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-lifecycle).
 
+## Performance
+
+Targets: a few hundred microseconds per tick on average. No single tick during play should come
+near 16 ms. Set-up when the mod is added or Vulcanus is created may take a slow tick or two. The
+`perf-*` test scenarios measure this on a radius-24 map with 35 territories:
+
+| Scenario | Avg per tick | Worst tick |
+| --- | --- | --- |
+| `perf-steady`: map-settings timing, evolution 0.5, 5 min | 0.14 ms | 4–10 ms (varies run to run) |
+| `perf-stress`: every clock every 10 ticks, low thresholds | 0.4 ms | 8–12 ms, counting the tick where the test kills 4 demolishers |
+
+How it stays bounded:
+- **Territory index (`index.lua`).** The mod keeps its own map of which territory owns each chunk,
+  plus each territory's chunks, size, centre and demolisher. It updates the index on its own changes
+  and on the map generator's creation events, so play never needs `get_territories` or
+  `get_chunks`. It assumes no other mod edits Vulcanus territories (see Compatibility).
+- **Frontiers.** Cleared chunks and unclaimed starting-area chunks that border a living territory
+  are kept as sets. Expansion weighs a random sample of up to 48 entries rather than every cleared
+  chunk.
+- **Spread work.**
+  - The vibration check sweeps the explored chunks a slice per tick, one full pass every 5 s.
+  - A dead territory is cleared 48 chunks per tick.
+  - At most one event runs per tick; the others wait a tick.
+  - A travelling nester is checked every 10 ticks.
+  - Set-up when Vulcanus is created during play runs over about 12 ticks.
+- **Numeric chunk keys.** Keys are numbers, not `"x,y"` strings. String keys were the largest cost
+  in the first version.
+- What remains per-tick is a demolisher coiling while it nests, at about 0.4 ms each. At most 2
+  demolishers nest at once.
+
+Profiling: `set_tuning{profile = true}` logs `PROFILE <section> Duration: … tick …` lines to
+`factorio-current.log`; the `perf-*` scenarios take `params.profile`.
+
 ## Compatibility
+
+- **Mods that edit Vulcanus territories.** The mod keeps its own index of territories and
+  assumes only it and the map generator change them, for performance. A mod that creates, resizes or
+  removes Vulcanus territories with `set_territory_for_chunks`, `create_territory` or
+  `LuaTerritory.destroy` desynchronises that index until the next mod or game update rebuilds it.
 
 - **Mods that remove demolishers.** A mod that removes a demolisher with
   `LuaSegmentedUnit.destroy()` without raising `script_raised_destroy_segmented_unit` leaves its
@@ -153,14 +191,8 @@ Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-l
       hatch weights.
 - [ ] Switch the override's default to 0 for release.
 - [ ] Measure how long a cleared area stays clear at the chosen rate, on a real base.
-- [x] Performance on the test map (seed 12345, 1051 explored chunks, 15 demolishers): about
-      0.24 ms per tick with map-settings timing (0.12 ms without the mod) and about 1.1 ms with the
-      10-tick testing override. Expansion into free land works from the starting area outward and
-      growth caches each demolisher's native size, after both cost about 20 ms per event.
-- [ ] Performance: nesting trips update every tick (at most 2 at once). Growth samples 8
-      demolishers, and hatching scans the cleared chunks per nest.
-- [ ] Performance: every attempt scans all cleared chunks for ones bordering a living territory.
-      Fine for hundreds of chunks; profile with thousands, and keep a frontier set if needed.
+- [x] Performance: see the Performance section and the `perf-*` scenarios.
+- [ ] Performance on a hand-played late-game Vulcanus save (thousands of explored chunks).
 
 ### 3. Spawn logic that feels coherent
 Decided:
@@ -241,8 +273,7 @@ Open:
       (`vibration-investigate` test).
 - [ ] Tune the threshold (20), check interval (5 s) and per-demolisher cooldown (1 min) against a
       real base; check what a typical mining outpost's chunk reaches.
-- [ ] Performance: each check walks every explored chunk once. Spread it over ticks if that shows
-      up on a large map.
+- [x] Performance: the check is spread over its interval, a slice of explored chunks per tick.
 - Decided: nests stay at the territory centre regardless of vibration; efficiency modules are the
   player's way to make less.
 

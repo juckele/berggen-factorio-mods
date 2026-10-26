@@ -28,6 +28,9 @@ Version: 0.2.0
       ignore other targets. Uses cheap lure shells.
     - Eggs hatching within radar coverage raise the game's expansion alert.
     - In no-enemies mode the mod does nothing and says so in chat, instead of removing every (empty) territory.
+    - Performance: the mod keeps its own territory index and spreads periodic work over ticks (vibration checks,
+      clearing dead territories, set-up), running at most one event per tick. About 0.14 ms per tick on a large map
+      at map-settings timing.
     - New Vulcanus pollution layer, vibration: mining drills, pumps and offshore pumps make it, lava absorbs it
       quickly and volcanic rock steadily. It raises evolution on Vulcanus, and a demolisher investigates the loudest
       part of its territory once the vibration there gets high enough.

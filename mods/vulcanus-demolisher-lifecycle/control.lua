@@ -1,38 +1,50 @@
 -- Vulcanus Demolisher Lifecycle
 --
--- storage layout (schema 3):
+-- Performance: per-tick work is bounded. Territory data comes from the index (index.lua), never
+-- from scanning the game's territories; periodic scans are spread across ticks; at most one event
+-- runs per tick. See tests/vulcanus-demolisher-lifecycle (perf-* scenarios) for the limits.
+--
+-- storage layout (schema 4):
 --   storage.schema        integer, bumped when the layout changes
---   storage.vulcanus      nil until Vulcanus exists, then:
+--   storage.index         territory index (index.lua)
+--   storage.setup         set-up job in progress (Vulcanus created mid-game), or nil
+--   storage.vulcanus      nil until set up, then:
 --     surface_index       index of the tracked Vulcanus surface
---     initialized_tick    tick the mod first set up on this surface
---     safe_chunks         set of "x,y" chunk keys forming the original safe starting area
+--     initialized_tick    tick set-up finished
+--     safe_chunks         set of chunk key chunk keys forming the original safe starting area
 --     safe_chunk_count    number of entries in safe_chunks
---     safe_candidates     set of "x,y" keys of ungenerated chunks still to be decided
---     cleared_chunks      map of "x,y" key -> chunk position: land of dead territories that living
---                         territories can expand into. Includes ungenerated chunks.
+--     safe_candidates     set of chunk key keys of ungenerated chunks still to be decided
+--     cleared_chunks      map of chunk key -> chunk: land of dead territories, for expansion
 --     cleared_chunk_count number of entries in cleared_chunks
---     reserved            map of "x,y" key -> nest id: nest chunks that expansion skips while the
---                         nest has eggs, so a hatchling always has its chunk
---   storage.pending       territories to re-check after a demolisher died, keyed by unit_number
+--     frontier            cleared chunks that may border a living territory: {list = {keys}, pos =
+--                         {key -> position in list}}, so expansion can sample it
+--     reserved            map of chunk key -> nest id: nest chunks expansion skips while it has eggs
+--     explored            array of explored chunk positions, for the vibration sweep
+--     sweep               vibration sweep in progress: {i, loudest = {tid -> {amount, position}}}
+--   storage.pending       set of territory ids whose demolisher died, cleared a batch of chunks per tick
+--   storage.clearing      the dead territory being cleared: {tid, list of chunks, next position}
 --   storage.next_event    map of event name -> tick of its next attempt
 --   storage.last_event    map of event name -> tick of its last attempt
 --   storage.trips         map of unit_number -> nesting trip in progress
---   storage.nests         map of nest id -> nest (site, parent, eggs)
+--   storage.nests         map of nest id -> nest (site, parent territory id, eggs)
 --   storage.egg_registrations map of on_object_destroyed registration number -> {nest, egg}
 --   storage.retry_after   map of unit_number -> tick before which that demolisher won't nest again
---   storage.last_investigation map of unit_number -> tick it was last sent after vibration
---   storage.wreck         map of unit_number -> {chunk key -> {chunk, visits}}: chunks with player
---                         buildings its territory took, to send it to
+--   storage.last_investigation map of territory id -> tick its demolisher was last sent by vibration
+--   storage.wreck         map of territory id -> {chunk key -> {chunk, visits}}: chunks with player
+--                         buildings it took
+--   storage.native_tier   map of territory id -> size the map generator places there
 --   storage.tuning        overrides for tuning.lua, set through the remote interface
 --   storage.stats         counters, exposed through the remote interface for tests and other mods
 
 local tuning = require("tuning")
 local coil = require("coil")
+local index = require("index")
 local T = tuning.get
 local dist = coil.dist
+local key = index.key
 
 local SURFACE_NAME = "vulcanus"
-local SCHEMA = 3
+local SCHEMA = 4
 local EVENTS = { "expansion", "growth", "nest", "hatch" }
 
 local SETTING_PROTECT = "demolisher-lifecycle-protect-starting-area"
@@ -42,10 +54,29 @@ local SETTING_DEBUG = "demolisher-lifecycle-debug-log"
 -- How far from the map origin (in chunks) to look for the starting area. Vulcanus puts its
 -- starting area disc 100 * starting_area_radius + 32 tiles from the origin with a 224 tile radius.
 local SAFE_ZONE_SCAN_RADIUS = 24
+-- Rows of the starting-area scan per tick when set-up is spread over ticks.
+local SETUP_ROWS_PER_TICK = 6
 -- Growth looks at this many random demolishers per event.
 local GROWTH_SAMPLES = 8
+-- A travelling nester's progress is checked this often (ticks).
+local TRAVEL_CHECK_INTERVAL = 10
 
 local AI = defines.segmented_unit_ai_state
+local NEIGHBOURS = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
+
+-- Set while this mod creates territories or demolishers, so the creation events don't index them
+-- a second time.
+local creating = false
+
+-- Profiling (tuning key "profile"): log how long a piece of work took, for performance work.
+local function profiled(name, fn, ...)
+  if not T("profile") then return fn(...) end
+  local profiler = helpers.create_profiler()
+  local a, b = fn(...)
+  profiler.stop()
+  log({ "", "PROFILE ", name, " ", profiler, " tick ", game.tick })
+  return a, b
+end
 
 local function debug_log(message)
   if settings.global[SETTING_DEBUG].value then
@@ -54,6 +85,10 @@ local function debug_log(message)
 end
 
 local function chunk_key(chunk)
+  return key(chunk.x, chunk.y)
+end
+
+local function chunk_name(chunk)
   return chunk.x .. "," .. chunk.y
 end
 
@@ -103,33 +138,30 @@ local function setup_storage()
   storage.on_init_run_before = nil
   storage.on_tick_run_before = nil
   storage.vulcanus_is_initialized = nil
-  storage.schema = SCHEMA
-  storage.pending = storage.pending or {}
   storage.stats = storage.stats or new_stats()
-  for key, value in pairs(new_stats()) do
-    if storage.stats[key] == nil then storage.stats[key] = value end
+  for k, value in pairs(new_stats()) do
+    if storage.stats[k] == nil then storage.stats[k] = value end
   end
-  local v = storage.vulcanus
-  if v and not v.cleared_chunks then
-    -- 0.2.0 didn't mark cleared land, so land it cleared can't be expanded into.
-    v.cleared_chunks = {}
-    v.cleared_chunk_count = 0
-  end
-  if v and not v.reserved then v.reserved = {} end
   storage.next_event = storage.next_event or {}
   storage.last_event = storage.last_event or {}
-  -- Schema 2 had a single expansion clock.
-  if storage.next_expansion_tick then
-    storage.next_event.expansion = storage.next_expansion_tick
-    storage.last_event.expansion = storage.last_expansion_tick
-    storage.next_expansion_tick = nil
-    storage.last_expansion_tick = nil
-  end
   storage.trips = storage.trips or {}
   storage.nests = storage.nests or {}
   storage.next_nest_id = storage.next_nest_id or 1
   storage.egg_registrations = storage.egg_registrations or {}
   storage.retry_after = storage.retry_after or {}
+  storage.last_investigation = storage.last_investigation or {}
+  storage.wreck = storage.wreck or {}
+  storage.native_tier = storage.native_tier or {}
+  storage.index = storage.index or index.new()
+  -- Before schema 4 the pending table held territories or chunks; the set-up sweep covers them.
+  if (storage.schema or 0) < SCHEMA then
+    storage.pending = {}
+    storage.clearing = nil
+    storage.last_investigation = {}
+    storage.wreck = {}
+    storage.native_tier = {}
+  end
+  storage.pending = storage.pending or {}
 end
 
 local function tracked_surface()
@@ -164,7 +196,6 @@ local function schedule_all(surface)
   end
 end
 
--- The mod needs enemy expansion. Say so once each time it is found turned off.
 -- No-enemies mode on Vulcanus (inherited from the new-game settings) leaves every territory
 -- without a demolisher, so the mod stays inert there instead of clearing them all.
 local function inert(surface)
@@ -172,7 +203,6 @@ local function inert(surface)
 end
 
 -- The mod needs enemy expansion and enemies. Say so once each time either is found missing.
--- Defined before the lifecycle code, which provides on_resume.
 local function check_settings(on_resume)
   local surface = tracked_surface()
   if not surface then return end
@@ -196,170 +226,198 @@ end
 ---------------------------------------------------------------------------------------------------
 -- Safe starting area
 
--- The safe zone is recorded once per Vulcanus surface, whether or not protection is enabled, so
--- that turning protection on later has something to protect. A chunk is a candidate if it is in or
--- next to the map generator's starting-area disc. A candidate is safe once it is generated and
--- holds no territory: generated chunks are decided now (so a save that already lost part of its
--- starting area keeps what is left, and nothing is evicted), ungenerated candidates are decided by
--- on_chunk_generated, after the map generator has assigned their territory.
-local function record_safe_zone(surface)
-  local positions = {}
-  local sample_offsets = { { 16, 16 }, { 1, 1 }, { 31, 1 }, { 1, 31 }, { 31, 31 } }
-  for cx = -SAFE_ZONE_SCAN_RADIUS, SAFE_ZONE_SCAN_RADIUS do
-    for cy = -SAFE_ZONE_SCAN_RADIUS, SAFE_ZONE_SCAN_RADIUS do
-      for _, o in ipairs(sample_offsets) do
-        positions[#positions + 1] = { cx * 32 + o[1], cy * 32 + o[2] }
-      end
-    end
-  end
-  local values = surface.calculate_tile_properties({ "demolisher_starting_area" }, positions)["demolisher_starting_area"]
-
-  local in_disc = {}
-  local per_chunk = #sample_offsets
-  for i = 1, #positions, per_chunk do
-    for j = i, i + per_chunk - 1 do
-      if values[j] > 0 then
-        in_disc[chunk_key({ x = math.floor(positions[i][1] / 32), y = math.floor(positions[i][2] / 32) })] = true
-        break
-      end
-    end
-  end
-
-  local safe, count, candidates = {}, 0, {}
-  for cx = -SAFE_ZONE_SCAN_RADIUS, SAFE_ZONE_SCAN_RADIUS do
-    for cy = -SAFE_ZONE_SCAN_RADIUS, SAFE_ZONE_SCAN_RADIUS do
-      local chunk = { x = cx, y = cy }
-      local key = chunk_key(chunk)
-      local near_disc = false
-      for dx = -1, 1 do
-        for dy = -1, 1 do
-          if in_disc[(cx + dx) .. "," .. (cy + dy)] then near_disc = true end
-        end
-      end
-      if near_disc and surface.get_territory_for_chunk(chunk) == nil then
-        if surface.is_chunk_generated(chunk) then
-          safe[key] = true
-          count = count + 1
-        else
-          candidates[key] = true
-        end
-      end
-    end
-  end
-  return safe, count, candidates
-end
-
-local function on_chunk_generated(event)
+local function is_safe_key(k)
   local v = storage.vulcanus
-  if not v or event.surface.index ~= v.surface_index then return end
-  local key = chunk_key(event.position)
-  if not v.safe_candidates[key] then return end
-  v.safe_candidates[key] = nil
-  if event.surface.get_territory_for_chunk(event.position) == nil then
-    v.safe_chunks[key] = true
-    v.safe_chunk_count = v.safe_chunk_count + 1
-  end
+  return v ~= nil and v.safe_chunks[k] == true
 end
 
 local function is_safe_chunk(chunk)
+  return is_safe_key(chunk_key(chunk))
+end
+
+---------------------------------------------------------------------------------------------------
+-- Cleared land and the expansion frontier
+
+local function mark_cleared(x, y)
   local v = storage.vulcanus
-  return v ~= nil and v.safe_chunks[chunk_key(chunk)] == true
+  local k = key(x, y)
+  if not v.cleared_chunks[k] then
+    v.cleared_chunks[k] = { x = x, y = y }
+    v.cleared_chunk_count = v.cleared_chunk_count + 1
+  end
+end
+
+-- A frontier is {list = {keys}, pos = {key -> position in list}}: a set that can be sampled.
+local function frontier_add(k, name)
+  local f = storage.vulcanus[name or "frontier"]
+  if f.pos[k] then return end
+  local n = #f.list + 1
+  f.list[n] = k
+  f.pos[k] = n
+end
+
+local function frontier_remove(k, name)
+  local f = storage.vulcanus[name or "frontier"]
+  local i = f.pos[k]
+  if not i then return end
+  local n = #f.list
+  local last = f.list[n]
+  f.list[i] = last
+  f.pos[last] = i
+  f.list[n] = nil
+  f.pos[k] = nil
+end
+
+local function unmark_cleared(k)
+  local v = storage.vulcanus
+  if v.cleared_chunks[k] then
+    v.cleared_chunks[k] = nil
+    v.cleared_chunk_count = v.cleared_chunk_count - 1
+  end
+  frontier_remove(k)
+end
+
+-- Living territories bordering a chunk, as a list of territory ids (no duplicates).
+local function living_neighbours(x, y)
+  local result, seen = {}, {}
+  for _, d in ipairs(NEIGHBOURS) do
+    local tid = index.owner_at(x + d[1], y + d[2])
+    if tid and not seen[tid] and index.alive(index.get(tid)) then
+      seen[tid] = true
+      result[#result + 1] = tid
+    end
+  end
+  return result
+end
+
+-- Whether a living territory borders a chunk (no allocation, for hot loops).
+local function has_living_neighbour(x, y)
+  local owner, terr = storage.index.owner, storage.index.terr
+  for _, d in ipairs(NEIGHBOURS) do
+    local tid = owner[key(x + d[1], y + d[2])]
+    if tid and index.alive(terr[tid]) then return true end
+  end
+  return false
+end
+
+-- A cleared chunk joins the frontier if it borders a living territory; an unclaimed chunk of the
+-- starting area joins the safe frontier. Entries go stale when that territory dies or the chunk is
+-- taken; expansion drops them when it finds them.
+local function frontier_consider(x, y)
+  local v = storage.vulcanus
+  local k = key(x, y)
+  local cleared = v.cleared_chunks[k]
+  local free_safe = v.safe_chunks[k] and not storage.index.owner[k]
+  if (cleared or free_safe) and has_living_neighbour(x, y) then
+    if cleared then frontier_add(k) end
+    if free_safe then frontier_add(k, "safe_frontier") end
+  end
+end
+
+-- After a chunk joins territory, its free neighbours border a living territory.
+local function frontier_around(x, y)
+  for _, d in ipairs(NEIGHBOURS) do frontier_consider(x + d[1], y + d[2]) end
+end
+
+local function rebuild_frontier()
+  local v = storage.vulcanus
+  v.frontier = { list = {}, pos = {} }
+  v.safe_frontier = { list = {}, pos = {} }
+  for _, c in pairs(v.cleared_chunks) do frontier_consider(c.x, c.y) end
+  for k in pairs(v.safe_chunks) do frontier_consider(index.unkey(k)) end
 end
 
 ---------------------------------------------------------------------------------------------------
 -- Dead territories
 
 -- In vanilla a territory stays after its last demolisher dies. This mod needs that land free so
--- living territories can expand into it, so it removes the territory. LuaTerritory.destroy() would let
--- the map generator create a fresh territory (with a fresh demolisher) on any of its chunks that
--- get generated later, so instead the chunks are set to no territory, which also deletes the
--- territory. The chunks are marked as cleared so living territories can
--- expand into them (see Expansion).
-local function mark_cleared(chunk)
-  local v = storage.vulcanus
-  local key = chunk_key(chunk)
-  if not v.cleared_chunks[key] then
-    v.cleared_chunks[key] = { x = chunk.x, y = chunk.y }
-    v.cleared_chunk_count = v.cleared_chunk_count + 1
+-- living territories can expand into it, so it removes the territory. LuaTerritory.destroy() would
+-- let the map generator create a fresh territory (with a fresh demolisher) on any of its chunks
+-- that get generated later, so instead the chunks are set to no territory, which also deletes the
+-- territory. The chunks are marked as cleared so living territories can expand into them.
+local function clear_territory(surface, tid)
+  local t = index.get(tid)
+  if not t then return end
+  local list = {}
+  for _, c in pairs(t.chunks) do list[#list + 1] = c end
+  if t.territory.valid then surface.set_territory_for_chunks(list, nil) end
+  for _, c in ipairs(list) do
+    index.remove_chunk(tid, key(c.x, c.y))
+    mark_cleared(c.x, c.y)
   end
-end
-
-local function unmark_cleared(key)
-  local v = storage.vulcanus
-  if v.cleared_chunks[key] then
-    v.cleared_chunks[key] = nil
-    v.cleared_chunk_count = v.cleared_chunk_count - 1
-  end
-end
-
-local function clear_territory(surface, territory)
-  local chunks = territory.get_chunks()
-  surface.set_territory_for_chunks(chunks, nil)
-  for _, chunk in pairs(chunks) do mark_cleared(chunk) end
+  index.drop(tid)
+  for _, c in ipairs(list) do frontier_consider(c.x, c.y) end
   stat("territories_cleared")
-  stat("chunks_cleared", #chunks)
-  debug_log("Cleared a territory of " .. #chunks .. " chunks")
+  stat("chunks_cleared", #list)
+  debug_log("Cleared a territory of " .. #list .. " chunks")
 end
 
+-- During play a territory is cleared a batch of chunks per tick: setting territory on a few hundred
+-- chunks at once costs several milliseconds.
+local CLEAR_BATCH = 48
+
+local function clear_batch(surface, job)
+  local t = index.get(job.tid)
+  local last = math.min(#job.list, job.i + CLEAR_BATCH - 1)
+  local batch = {}
+  -- Skip chunks that changed hands meanwhile (a hatchling's nest chunk).
+  for i = job.i, last do
+    local c = job.list[i]
+    if index.owner_at(c.x, c.y) == job.tid then batch[#batch + 1] = c end
+  end
+  job.i = last + 1
+  if t and t.territory.valid then surface.set_territory_for_chunks(batch, nil) end
+  for _, c in ipairs(batch) do
+    index.remove_chunk(job.tid, key(c.x, c.y))
+    mark_cleared(c.x, c.y)
+  end
+  for _, c in ipairs(batch) do frontier_consider(c.x, c.y) end
+  if job.i > #job.list then
+    index.drop(job.tid)
+    stat("territories_cleared")
+    stat("chunks_cleared", #job.list)
+    debug_log("Cleared a territory of " .. #job.list .. " chunks")
+    return true
+  end
+  return false
+end
+
+-- At load time: clear every dead territory now.
 local function clear_dead_territories(surface)
-  for _, territory in pairs(surface.get_territories()) do
-    if territory.valid and #territory.get_segmented_units() == 0 then
-      clear_territory(surface, territory)
-    end
+  for tid, t in pairs(storage.index.terr) do
+    if not index.alive(t) then clear_territory(surface, tid) end
   end
 end
 
-local function queue_territory_check(segmented_unit)
-  local surface = tracked_surface()
-  if not surface or not segmented_unit.valid or segmented_unit.surface ~= surface then return end
-  local territory = segmented_unit.territory
-  if not territory or not territory.valid then return end
-  -- Keep the territory itself: a territory can lie entirely in unexplored chunks, so it can't
-  -- always be found again by chunk.
-  storage.pending[segmented_unit.unit_number] = territory
+-- During play: queue them, cleared one per tick.
+local function queue_dead_territories()
+  for tid, t in pairs(storage.index.terr) do
+    if not index.alive(t) then storage.pending[tid] = true end
+  end
 end
 
--- Runs a tick after a death: during on_segmented_unit_died the dying unit is still listed as
--- guarding its territory.
-local function process_pending()
-  local surface = tracked_surface()
-  local pending = storage.pending
-  storage.pending = {}
-  if not surface then return end
-  for _, entry in pairs(pending) do
-    local territory = entry
-    if type(entry) == "table" and entry.object_name ~= "LuaTerritory" then
-      territory = surface.get_territory_for_chunk(entry) -- queued by schema 2, by chunk
-    end
-    if territory and territory.valid and #territory.get_segmented_units() == 0 then
-      clear_territory(surface, territory)
-    end
+local function process_pending(surface)
+  local job = storage.clearing
+  if not job then
+    local tid = next(storage.pending)
+    if not tid then return end
+    storage.pending[tid] = nil
+    local t = index.get(tid)
+    if not t or index.alive(t) then return end
+    local list = {}
+    for _, c in pairs(t.chunks) do list[#list + 1] = c end
+    job = { tid = tid, list = list, i = 1 }
+    storage.clearing = job
   end
+  if clear_batch(surface, job) then storage.clearing = nil end
 end
 
 ---------------------------------------------------------------------------------------------------
 -- Expansion
 
-local NEIGHBOURS = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
-
-local function has_living_units(territory)
-  return territory ~= nil and territory.valid and #territory.get_segmented_units() > 0
-end
-
 -- Expansion prefers chunks near the centre of the territory that gains them, so holes and
 -- concave edges fill first: weight = exp(-strength * d / r), with d the chunk's distance from
--- the territory's centre and r the territory's mean radius (both in chunks).
-local function territory_geometry(territory)
-  local chunks = territory.get_chunks()
-  local sx, sy, n = 0, 0, 0
-  for _, c in pairs(chunks) do sx, sy, n = sx + c.x, sy + c.y, n + 1 end
-  if n == 0 then return nil end
-  local cx, cy = sx / n, sy / n
-  local sum = 0
-  for _, c in pairs(chunks) do sum = sum + math.sqrt((c.x - cx) ^ 2 + (c.y - cy) ^ 2) end
-  return { x = cx, y = cy, radius = math.max(1, sum / n) }
-end
-
+-- the territory's centre and r the territory's radius (both in chunks).
 local function expansion_weight(geometry, chunk)
   local d = math.sqrt((chunk.x - geometry.x) ^ 2 + (chunk.y - geometry.y) ^ 2)
   return math.exp(-T("expansion_centre_weight") * d / geometry.radius)
@@ -380,84 +438,100 @@ end
 -- Defined with the wrecking code below; queues a newly gained chunk that has player buildings.
 local on_chunk_gained
 
--- Expanding into cleared land: a cleared chunk next to a territory with a living demolisher joins that territory. This
--- works on cleared chunks nobody has explored yet, which plain expansion can't see.
+-- Gives a chunk to a territory, in the game and the index.
+local function give_chunk(surface, tid, chunk)
+  local t = index.get(tid)
+  surface.set_territory_for_chunks({ chunk }, t.territory)
+  t.territory.regenerate_patrol_path()
+  index.add_chunk(tid, chunk.x, chunk.y)
+  unmark_cleared(chunk_key(chunk))
+  frontier_remove(chunk_key(chunk), "safe_frontier")
+  frontier_around(chunk.x, chunk.y)
+  on_chunk_gained(surface, tid, chunk)
+end
+
+-- Frontier chunks weighed per expansion. A large frontier (after big territories die) is sampled
+-- rather than weighed in full, which keeps the cost of an expansion flat.
+local FRONTIER_SAMPLES = 48
+
+-- Up to FRONTIER_SAMPLES distinct frontier keys: all of them if it is small, else a random sample.
+local function frontier_sample(name)
+  local list = storage.vulcanus[name or "frontier"].list
+  local n = #list
+  if n <= FRONTIER_SAMPLES then
+    local copy_ = {}
+    for i = 1, n do copy_[i] = list[i] end
+    return copy_
+  end
+  local picked, result = {}, {}
+  while #result < FRONTIER_SAMPLES do
+    local i = math.random(1, n)
+    if not picked[i] then
+      picked[i] = true
+      result[#result + 1] = list[i]
+    end
+  end
+  return result
+end
+
+-- Expanding into cleared land: a cleared chunk next to a living territory joins it. This works on
+-- cleared chunks nobody has explored yet. Only the frontier is weighed.
 local function try_expand_into_cleared(surface, protect)
   local v = storage.vulcanus
   local candidates, blocked, geometry = {}, false, {}
-  for key, chunk in pairs(v.cleared_chunks) do
-    if v.reserved[key] then
-      -- A nest's chunk, kept for its hatchling.
-    elseif surface.get_territory_for_chunk(chunk) ~= nil then
-      unmark_cleared(key) -- taken some other way
-    else
-      local seen = {}
-      for _, d in ipairs(NEIGHBOURS) do
-        local territory = surface.get_territory_for_chunk({ x = chunk.x + d[1], y = chunk.y + d[2] })
-        if has_living_units(territory) then
-          local number = territory.get_segmented_units()[1].unit_number
-          if protect and is_safe_chunk(chunk) then
-            blocked = true
-          elseif not seen[number] then
-            seen[number] = true
-            geometry[number] = geometry[number] or territory_geometry(territory)
-            candidates[#candidates + 1] = { key = key, chunk = chunk, territory = territory,
-              weight = expansion_weight(geometry[number], chunk) }
-          end
+  for _, k in ipairs(frontier_sample()) do
+    local c = v.cleared_chunks[k]
+    if not c then
+      frontier_remove(k)
+    elseif not v.reserved[k] then
+      local tids = living_neighbours(c.x, c.y)
+      if #tids == 0 then
+        frontier_remove(k)
+      elseif protect and v.safe_chunks[k] then
+        blocked = true
+      else
+        for _, tid in ipairs(tids) do
+          geometry[tid] = geometry[tid] or index.geometry(index.get(tid))
+          candidates[#candidates + 1] = { chunk = c, tid = tid, weight = expansion_weight(geometry[tid], c) }
         end
       end
     end
   end
   if #candidates == 0 then return false, blocked end
   local pick = weighted_pick(candidates)
-  surface.set_territory_for_chunks({ pick.chunk }, pick.territory)
-  pick.territory.regenerate_patrol_path()
-  unmark_cleared(pick.key)
+  give_chunk(surface, pick.tid, pick.chunk)
   stat("expansions")
   stat("cleared_chunks_taken")
-  debug_log("Territory expanded into cleared chunk " .. pick.key)
-  on_chunk_gained(surface, pick.territory, pick.chunk)
+  debug_log("Territory expanded into cleared chunk " .. chunk_name(pick.chunk))
   return true, blocked
 end
 
 -- Plain expansion: into an explored neighbouring chunk without territory that was never marked
--- cleared. The only such land is the starting area (every other chunk gets a territory from the map
--- generator or is marked cleared when its territory dies), so this works from the recorded starting
--- area outward rather than scanning every territory. With protection on it only notes whether a
--- living territory is pressing on the starting area.
+-- cleared. The only such land is the starting area, so this works through the safe frontier. With
+-- protection on it only notes whether a living territory presses on it.
 local function try_expand_free_land(surface, protect)
-  local v = storage.vulcanus
   local candidates, blocked, geometry = {}, false, {}
-  for key in pairs(v.safe_chunks) do
-    local x, y = key:match("^(-?%d+),(-?%d+)$")
-    local chunk = { x = tonumber(x), y = tonumber(y) }
-    if surface.get_territory_for_chunk(chunk) == nil then
-      local seen = {}
-      for _, d in ipairs(NEIGHBOURS) do
-        local territory = surface.get_territory_for_chunk({ x = chunk.x + d[1], y = chunk.y + d[2] })
-        if has_living_units(territory) then
-          if protect then
-            blocked = true
-            break
-          end
-          local number = territory.get_segmented_units()[1].unit_number
-          if not seen[number] then
-            seen[number] = true
-            geometry[number] = geometry[number] or territory_geometry(territory)
-            candidates[#candidates + 1] = { chunk = chunk, territory = territory, weight = expansion_weight(geometry[number], chunk) }
-          end
-        end
+  local owner = storage.index.owner
+  for _, k in ipairs(frontier_sample("safe_frontier")) do
+    local x, y = index.unkey(k)
+    if owner[k] or not has_living_neighbour(x, y) then
+      frontier_remove(k, "safe_frontier")
+    elseif protect then
+      blocked = true
+      break
+    else
+      local chunk = { x = x, y = y }
+      for _, tid in ipairs(living_neighbours(x, y)) do
+        geometry[tid] = geometry[tid] or index.geometry(index.get(tid))
+        candidates[#candidates + 1] = { chunk = chunk, tid = tid, weight = expansion_weight(geometry[tid], chunk) }
       end
-      if protect and blocked then break end
     end
   end
   if #candidates == 0 then return false, blocked end
   local pick = weighted_pick(candidates)
-  surface.set_territory_for_chunks({ pick.chunk }, pick.territory)
-  pick.territory.regenerate_patrol_path()
+  give_chunk(surface, pick.tid, pick.chunk)
   stat("expansions")
-  debug_log("Territory expanded into chunk " .. chunk_key(pick.chunk))
-  on_chunk_gained(surface, pick.territory, pick.chunk)
+  debug_log("Territory expanded into chunk " .. chunk_name(pick.chunk))
   return true, blocked
 end
 
@@ -485,16 +559,6 @@ local function tier_of(name)
   return nil
 end
 
--- Centre of a territory's chunks (may fall outside it for odd shapes).
-local function territory_centre(territory)
-  local sx, sy, n = 0, 0, 0
-  for _, chunk in pairs(territory.get_chunks()) do
-    sx, sy, n = sx + chunk.x * 32 + 16, sy + chunk.y * 32 + 16, n + 1
-  end
-  if n == 0 then return nil end
-  return { x = sx / n, y = sy / n }
-end
-
 -- The size the map generator would place here (1 = smallest), from the same noise expression.
 local function native_tier(surface, position)
   local value = surface.calculate_tile_properties({ "demolisher_variation_expression" },
@@ -506,23 +570,13 @@ local function head_of(unit)
   return unit.get_body_nodes()[1]
 end
 
-local function living_units(surface)
-  local units = {}
-  for _, unit in pairs(surface.get_segmented_units()) do
-    if unit.valid and unit.territory and unit.territory.valid and tier_of(unit.prototype.name) then
-      units[#units + 1] = unit
-    end
+-- Living territories with a known size, as a list of {tid, t}.
+local function living_territories()
+  local result = {}
+  for tid, t in pairs(storage.index.terr) do
+    if index.alive(t) and t.territory.valid then result[#result + 1] = { tid = tid, t = t } end
   end
-  return units
-end
-
-local function territory_chunk_set(territory)
-  local set, count = {}, 0
-  for _, chunk in pairs(territory.get_chunks()) do
-    set[chunk_key(chunk)] = chunk
-    count = count + 1
-  end
-  return set, count
+  return result
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -532,29 +586,25 @@ local function sigmoid(x)
   return 1 / (1 + math.exp(-x))
 end
 
-local function retarget_nests(old_number, new_unit)
-  for _, nest in pairs(storage.nests) do
-    if nest.parent_unit_number == old_number then
-      nest.parent = new_unit
-      nest.parent_unit_number = new_unit.unit_number
-    end
-  end
-end
-
-local function grow(surface, unit, next_name)
+local function grow(surface, tid, t, next_name)
+  local unit = t.unit
+  creating = true
   local replacement = surface.create_segmented_unit({
     name = next_name,
     force = unit.force,
-    territory = unit.territory,
+    territory = t.territory,
     body_nodes = unit.get_body_nodes(),
   })
+  creating = false
   if not replacement then return false end
   replacement.health = replacement.max_health * unit.health_ratio
-  retarget_nests(unit.unit_number, replacement)
-  for _, map in pairs({ storage.retry_after, storage.wreck or {}, storage.last_investigation or {}, storage.native_tier or {} }) do
-    map[replacement.unit_number] = map[unit.unit_number]
-    map[unit.unit_number] = nil
+  local old_number = unit.unit_number
+  storage.retry_after[replacement.unit_number] = storage.retry_after[old_number]
+  storage.retry_after[old_number] = nil
+  for _, nest in pairs(storage.nests) do
+    if nest.parent_tid == tid then nest.parent_unit_number = replacement.unit_number end
   end
+  index.set_unit(tid, replacement)
   unit.destroy()
   stat("growths")
   debug_log("Demolisher grew into " .. next_name)
@@ -562,29 +612,29 @@ local function grow(surface, unit, next_name)
 end
 
 local function run_growth(surface)
-  local units = living_units(surface)
+  local list = living_territories()
   local tiers = T("tiers")
-  for _ = 1, math.min(GROWTH_SAMPLES, #units) do
-    local index = math.random(1, #units)
-    local unit = units[index]
-    table.remove(units, index)
-    local tier = tier_of(unit.prototype.name)
-    if tier < #tiers and not storage.trips[unit.unit_number] then
+  for _ = 1, math.min(GROWTH_SAMPLES, #list) do
+    local i = math.random(1, #list)
+    local entry = list[i]
+    list[i] = list[#list]
+    list[#list] = nil
+    local tid, t = entry.tid, entry.t
+    local tier = tier_of(t.unit.prototype.name)
+    if tier and tier < #tiers and not storage.trips[t.unit_number] then
       local next_name = tiers[tier + 1]
       local midpoint = T("growth_midpoint")[next_name]
       if midpoint then
         -- Judged at the territory's centre: the map generator sizes a demolisher by its territory.
-        -- Cached per demolisher; its territory's centre moves slowly.
-        storage.native_tier = storage.native_tier or {}
-        local native = storage.native_tier[unit.unit_number]
-        local size = #unit.territory.get_chunks()
+        local native = storage.native_tier[tid]
         if not native then
-          native = native_tier(surface, territory_centre(unit.territory))
-          storage.native_tier[unit.unit_number] = native
+          local g = index.geometry(t)
+          native = native_tier(surface, { x = g.x * 32 + 16, y = g.y * 32 + 16 })
+          storage.native_tier[tid] = native
         end
         if tier + 1 <= native + T("growth_tiers_above_native")
-          and math.random() < sigmoid((size - midpoint) / T("growth_width")) then
-          return grow(surface, unit, next_name)
+          and math.random() < sigmoid((t.count - midpoint) / T("growth_width")) then
+          return grow(surface, tid, t, next_name)
         end
       end
     end
@@ -596,33 +646,29 @@ end
 -- Nesting: a max-size demolisher with a big territory travels to the territory's centre, coils
 -- around the spot, lays a nest of eggs, and returns to its patrol.
 
-local function owns_nest(unit_number)
+local function owns_nest(tid)
   for _, nest in pairs(storage.nests) do
-    if nest.parent_unit_number == unit_number then return true end
+    if nest.parent_tid == tid then return true end
   end
   return false
 end
 
 -- Centre of the territory's chunks, snapped to its nearest explored chunk.
-local function nest_site(surface, territory)
-  local sx, sy, n = 0, 0, 0
-  local chunks = territory.get_chunks()
-  for _, chunk in pairs(chunks) do
-    sx, sy, n = sx + chunk.x, sy + chunk.y, n + 1
+local function nest_site(surface, t)
+  local g = index.geometry(t)
+  local ranked = {}
+  for _, c in pairs(t.chunks) do
+    ranked[#ranked + 1] = { c = c, d = (c.x - g.x) ^ 2 + (c.y - g.y) ^ 2 }
   end
-  if n == 0 then return nil end
-  local cx, cy = sx / n, sy / n
-  local best, best_d
-  for _, chunk in pairs(chunks) do
-    if surface.is_chunk_generated(chunk) then
-      local d = (chunk.x - cx) ^ 2 + (chunk.y - cy) ^ 2
-      if not best_d or d < best_d then best, best_d = chunk, d end
+  table.sort(ranked, function(a, b) return a.d < b.d end)
+  for _, entry in ipairs(ranked) do
+    if surface.is_chunk_generated(entry.c) then
+      local centre = chunk_centre(entry.c)
+      local position = surface.find_non_colliding_position("demolisher-egg", centre, 12, 1) or centre
+      return position, { x = entry.c.x, y = entry.c.y }
     end
   end
-  if not best then return nil end
-  local position = surface.find_non_colliding_position("demolisher-egg", chunk_centre(best), 12, 1)
-    or chunk_centre(best)
-  return position, best
+  return nil
 end
 
 local function nearest_waypoint(unit)
@@ -654,22 +700,32 @@ local function run_nest(surface)
   if table_size(storage.trips) >= T("nest_max_trips") then return false end
   local tiers = T("tiers")
   local max_tier = tiers[#tiers]
+  local min_chunks = T("nest_min_chunks")
   local candidates = {}
-  for _, unit in pairs(living_units(surface)) do
-    local number = unit.unit_number
-    if unit.prototype.name == max_tier and not storage.trips[number] and not owns_nest(number)
-      and game.tick >= (storage.retry_after[number] or 0) then
-      local _, size = territory_chunk_set(unit.territory)
-      if size >= T("nest_min_chunks") then candidates[#candidates + 1] = unit end
+  for _, entry in ipairs(living_territories()) do
+    local t = entry.t
+    local number = t.unit_number
+    if t.count >= min_chunks and t.unit.prototype.name == max_tier and not storage.trips[number]
+      and game.tick >= (storage.retry_after[number] or 0) and not owns_nest(entry.tid) then
+      candidates[#candidates + 1] = entry
     end
   end
-  if #candidates == 0 then return false end
-  local unit = candidates[math.random(1, #candidates)]
-  local site, chunk = nest_site(surface, unit.territory)
+  -- In random order, the first with an explored chunk to nest on.
+  local entry, site, chunk
+  while #candidates > 0 do
+    local i = math.random(1, #candidates)
+    entry = candidates[i]
+    candidates[i] = candidates[#candidates]
+    candidates[#candidates] = nil
+    site, chunk = nest_site(surface, entry.t)
+    if site then break end
+  end
   if not site then return false end
+  local unit = entry.t.unit
   storage.trips[unit.unit_number] = {
     unit = unit,
     unit_number = unit.unit_number,
+    tid = entry.tid,
     site = site,
     chunk = chunk,
     phase = "travel",
@@ -678,7 +734,7 @@ local function run_nest(surface)
   }
   unit.set_ai_state({ type = AI.investigating, destination = site })
   stat("trips_started")
-  debug_log("Nesting trip started to " .. chunk_key(chunk))
+  debug_log("Nesting trip started to " .. chunk_name(chunk))
   return true
 end
 
@@ -693,9 +749,9 @@ local function lay_nest(surface, trip)
     site = trip.site,
     chunk = trip.chunk,
     chunk_key = chunk_key(trip.chunk),
-    parent = unit,
+    parent_tid = trip.tid,
     parent_unit_number = unit.unit_number,
-    parent_dead = false,
+    force = unit.force.name,
     marker = marker,
     eggs = {},
     next_egg = 1,
@@ -727,7 +783,11 @@ local function remove_nest_if_empty(nest)
   if nest.marker and nest.marker.valid then nest.marker.destroy() end
   storage.nests[nest.id] = nil
   local v = storage.vulcanus
-  if v and v.reserved[nest.chunk_key] == nest.id then v.reserved[nest.chunk_key] = nil end
+  if v and v.reserved[nest.chunk_key] == nest.id then
+    v.reserved[nest.chunk_key] = nil
+    local c = nest.chunk
+    frontier_consider(c.x, c.y)
+  end
 end
 
 local function update_trip(surface, trip)
@@ -737,6 +797,8 @@ local function update_trip(surface, trip)
     return
   end
   if trip.phase == "travel" then
+    -- The engine steers; checking every few ticks is enough.
+    if (game.tick + trip.unit_number) % TRAVEL_CHECK_INTERVAL ~= 0 then return end
     local head = head_of(unit)
     if dist(head, trip.site) <= T("nest_arrive_distance") then
       local nodes = unit.get_body_nodes()
@@ -792,41 +854,44 @@ end
 --   egg old and nowhere better to go     -> hatchling takes a parent chunk on the edge (lowest)
 -- The hatchling's territory is that one chunk; it grows from there like any other.
 
-local NEIGHBOURS4 = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
-
-local function nearest_chunk(surface, chunks, position)
-  local best, best_d
-  for _, chunk in pairs(chunks) do
-    if surface.is_chunk_generated(chunk) then
-      local d = dist(chunk_centre(chunk), position)
-      if not best_d or d < best_d then best, best_d = chunk, d end
-    end
+local function nearest_generated(surface, chunks, position)
+  local ranked = {}
+  for _, c in pairs(chunks) do
+    ranked[#ranked + 1] = { c = c, d = dist(chunk_centre(c), position) }
   end
-  return best
+  table.sort(ranked, function(a, b) return a.d < b.d end)
+  for _, entry in ipairs(ranked) do
+    if surface.is_chunk_generated(entry.c) then return entry.c end
+  end
+  return nil
 end
 
 -- Parent chunks next to cleared land the parent could expand into.
-local function chunks_next_to_free_space(parent_set)
+local function chunks_next_to_free_space(tid)
   local v = storage.vulcanus
   local protect = settings.global[SETTING_PROTECT].value
+  local t = index.get(tid)
   local result = {}
-  for key, chunk in pairs(v.cleared_chunks) do
-    if not v.reserved[key] and not (protect and is_safe_chunk(chunk)) then
-      for _, d in ipairs(NEIGHBOURS4) do
-        local neighbour = parent_set[(chunk.x + d[1]) .. "," .. (chunk.y + d[2])]
-        if neighbour then result[#result + 1] = neighbour end
+  local cleared, reserved, safe = v.cleared_chunks, v.reserved, v.safe_chunks
+  for _, c in pairs(t.chunks) do
+    for _, d in ipairs(NEIGHBOURS) do
+      local nk = key(c.x + d[1], c.y + d[2])
+      if cleared[nk] and not reserved[nk] and not (protect and safe[nk]) then
+        result[#result + 1] = c
+        break
       end
     end
   end
   return result
 end
 
-local function edge_chunks(parent_set)
+local function edge_chunks(tid)
+  local t = index.get(tid)
   local result = {}
-  for _, chunk in pairs(parent_set) do
-    for _, d in ipairs(NEIGHBOURS4) do
-      if not parent_set[(chunk.x + d[1]) .. "," .. (chunk.y + d[2])] then
-        result[#result + 1] = chunk
+  for _, c in pairs(t.chunks) do
+    for _, d in ipairs(NEIGHBOURS) do
+      if index.owner_at(c.x + d[1], c.y + d[2]) ~= tid then
+        result[#result + 1] = c
         break
       end
     end
@@ -835,57 +900,72 @@ local function edge_chunks(parent_set)
 end
 
 -- Weight, child chunk and reason for one nest's eggs right now (the same for all its eggs).
-local function hatch_option(surface, nest)
-  if nest.parent_dead or not (nest.parent and nest.parent.valid) then
+-- `old_enough` says whether any egg could use the old-egg rule, which is the costly one.
+local function hatch_option(surface, nest, old_enough)
+  local t = index.get(nest.parent_tid)
+  if not index.alive(t) then
     return T("hatch_weight_dead_parent"), nest.chunk, "dead_parent"
   end
-  local territory = nest.parent.territory
-  if not (territory and territory.valid) then return 0 end
-  local parent_set, size = territory_chunk_set(territory)
-  if size <= 1 then return 0 end
-  local free = chunks_next_to_free_space(parent_set)
+  if t.count <= 1 then return 0 end
+  local free = chunks_next_to_free_space(nest.parent_tid)
   if #free > 0 then
-    local chunk = nearest_chunk(surface, free, nest.site)
+    local chunk = nearest_generated(surface, free, nest.site)
     if chunk then return T("hatch_weight_free_space"), chunk, "free_space" end
   end
-  local chunk = nearest_chunk(surface, edge_chunks(parent_set), nest.site)
+  if not old_enough then return 0 end
+  local chunk = nearest_generated(surface, edge_chunks(nest.parent_tid), nest.site)
   if chunk then return T("hatch_weight_old"), chunk, "old" end
   return 0
 end
 
 local function hatch(surface, nest, egg, chunk, reason)
   local v = storage.vulcanus
-  local key = chunk_key(chunk)
+  local k = chunk_key(chunk)
+  local parent = index.get(nest.parent_tid)
+  creating = true
   local territory = surface.create_territory({ chunks = { chunk } })
+  creating = false
   if not territory then return false end
-  if v.cleared_chunks[key] then unmark_cleared(key) end
-  if reason ~= "dead_parent" and nest.parent.valid and nest.parent.territory.valid then
-    nest.parent.territory.regenerate_patrol_path()
+  local tid = index.index_territory(territory)
+  unmark_cleared(k)
+  if reason ~= "dead_parent" and parent and parent.territory.valid then
+    parent.territory.regenerate_patrol_path()
   end
+  creating = true
   local child = surface.create_segmented_unit({
     name = T("tiers")[1],
-    force = nest.parent.valid and nest.parent.force or "enemy",
+    force = nest.force or "enemy",
     territory = territory,
     position = egg.position,
   })
-  if child then
-    child.set_body_nodes(coil.curl(egg.position, child.max_body_nodes))
-    -- It owns its chunk straight away and finds its own way there along its patrol route.
-    child.set_ai_state({ type = AI.patrolling, waypoint = 1 })
-    -- Like a new biter base: the game's expansion alert, for forces with radar coverage there.
-    local head = child.segments[1] and child.segments[1].entity
-    if head then
-      for _, force in pairs(game.forces) do
-        if force.name ~= "enemy" and force.name ~= "neutral"
-          and force.is_chunk_visible(surface, chunk_of(egg.position)) then
-          force.add_alert(head, defines.alert_type.expansion_base_built)
-          stat("hatch_alerts")
-        end
+  creating = false
+  if not child then
+    -- Give the chunk back: to the parent if it had it, otherwise clear it again.
+    if parent and reason ~= "dead_parent" then
+      surface.set_territory_for_chunks({ chunk }, parent.territory)
+      index.add_chunk(nest.parent_tid, chunk.x, chunk.y)
+    else
+      surface.set_territory_for_chunks({ chunk }, nil)
+      if tid then index.remove_chunk(tid, k); index.drop(tid) end
+      mark_cleared(chunk.x, chunk.y)
+    end
+    return false
+  end
+  index.set_unit(tid, child)
+  child.set_body_nodes(coil.curl(egg.position, child.max_body_nodes))
+  -- It owns its chunk straight away and finds its own way there along its patrol route.
+  child.set_ai_state({ type = AI.patrolling, waypoint = 1 })
+  frontier_around(chunk.x, chunk.y)
+  -- Like a new biter base: the game's expansion alert, for forces with radar coverage there.
+  local head = child.segments[1] and child.segments[1].entity
+  if head then
+    for _, force in pairs(game.forces) do
+      if force.name ~= "enemy" and force.name ~= "neutral"
+        and force.is_chunk_visible(surface, chunk_of(egg.position)) then
+        force.add_alert(head, defines.alert_type.expansion_base_built)
+        stat("hatch_alerts")
       end
     end
-  else
-    territory.destroy()
-    return false
   end
   storage.egg_registrations[egg.registration] = nil
   nest.eggs[egg.id] = nil
@@ -893,34 +973,36 @@ local function hatch(surface, nest, egg, chunk, reason)
   remove_nest_if_empty(nest)
   stat("eggs_hatched")
   stat("hatched_" .. reason)
-  debug_log("Egg hatched (" .. reason .. ") into chunk " .. key)
+  debug_log("Egg hatched (" .. reason .. ") into chunk " .. chunk_name(chunk))
   return true
 end
 
 local function run_hatch(surface)
   local options, total = {}, 0
+  local min_age, old_age = T("egg_min_age"), T("egg_old_age")
   for _, nest in pairs(storage.nests) do
-    local weight, chunk, reason = hatch_option(surface, nest)
-    if weight > 0 then
-      for _, egg in pairs(nest.eggs) do
-        local age = game.tick - egg.laid
-        if egg.entity.valid and age >= T("egg_min_age") and (reason ~= "old" or age >= T("egg_old_age")) then
-          options[#options + 1] = { nest = nest, egg = egg, chunk = chunk, reason = reason, weight = weight }
-          total = total + weight
+    local ready, old_enough = false, false
+    for _, egg in pairs(nest.eggs) do
+      local age = game.tick - egg.laid
+      if age >= min_age then ready = true end
+      if age >= old_age then old_enough = true end
+    end
+    if ready then
+      local weight, chunk, reason = hatch_option(surface, nest, old_enough)
+      if weight > 0 then
+        for _, egg in pairs(nest.eggs) do
+          local age = game.tick - egg.laid
+          if egg.entity.valid and age >= min_age and (reason ~= "old" or age >= old_age) then
+            options[#options + 1] = { nest = nest, egg = egg, chunk = chunk, reason = reason, weight = weight }
+            total = total + weight
+          end
         end
       end
     end
   end
   if total == 0 then return false end
-  local roll = math.random() * total
-  for _, option in ipairs(options) do
-    roll = roll - option.weight
-    if roll <= 0 then
-      return hatch(surface, option.nest, option.egg, option.chunk, option.reason)
-    end
-  end
-  local last = options[#options]
-  return hatch(surface, last.nest, last.egg, last.chunk, last.reason)
+  local pick = weighted_pick(options)
+  return hatch(surface, pick.nest, pick.egg, pick.chunk, pick.reason)
 end
 
 local function on_object_destroyed(event)
@@ -934,29 +1016,28 @@ local function on_object_destroyed(event)
   remove_nest_if_empty(nest)
 end
 
+-- A demolisher died or was destroyed: its territory is cleared on a later tick.
 local function on_unit_gone(unit)
   if not unit.valid then return end
   local number = unit.unit_number
-  if storage.trips[number] then storage.trips[number] = nil end
-  for _, nest in pairs(storage.nests) do
-    if nest.parent_unit_number == number then nest.parent_dead = true end
+  storage.trips[number] = nil
+  local tid = index.tid_of_unit(number)
+  if tid then
+    index.set_unit(tid, nil)
+    storage.pending[tid] = true
   end
 end
 
 ---------------------------------------------------------------------------------------------------
--- Vibration: a demolisher investigates the loudest chunk of its territory once the vibration
--- there passes a threshold, the way vanilla demolishers investigate a disturbance.
+-- Vibration and wrecking. Demolishers are sent to investigate: buildings their territory grew over
+-- first, then the loudest chunk of their territory once its vibration passes a threshold. The
+-- explored chunks are swept a slice per tick, so a full pass takes vibration_check_interval ticks.
 
 local function busy(unit)
   local state = unit.get_ai_state().type
   return state == AI.attacking or state == AI.enraged_at_target or state == AI.enraged_at_nothing
     or state == AI.investigating or storage.trips[unit.unit_number] ~= nil
 end
-
--- Wrecking: when a territory gains a chunk with player buildings, its demolisher is sent there
--- (and sent again, while it has nothing else to do) until nothing of the player's is left. Vanilla
--- demolishers only react to buildings placed in their territory, not to territory growing over
--- existing ones, and sleep when no player is near.
 
 local function player_forces()
   local names = {}
@@ -977,80 +1058,75 @@ local function player_target_in(surface, chunk)
   return nil
 end
 
-on_chunk_gained = function(surface, territory, chunk)
+on_chunk_gained = function(surface, tid, chunk)
   if not player_target_in(surface, chunk) then return end
-  local unit = territory.get_segmented_units()[1]
-  if not unit then return end
-  storage.wreck = storage.wreck or {}
-  local queue = storage.wreck[unit.unit_number] or {}
-  storage.wreck[unit.unit_number] = queue
+  local queue = storage.wreck[tid] or {}
+  storage.wreck[tid] = queue
   queue[chunk_key(chunk)] = { chunk = { x = chunk.x, y = chunk.y }, visits = 0 }
   stat("chunks_with_buildings_taken")
-  debug_log("Territory took chunk " .. chunk_key(chunk) .. " with player buildings")
+  debug_log("Territory took chunk " .. chunk_name(chunk) .. " with player buildings")
 end
 
--- Sends demolishers after queued chunks. Returns the set of unit numbers it sent.
+-- Sends demolishers after queued chunks. Returns the set of territory ids it sent.
 local function run_wreck_dispatch(surface)
   local sent = {}
-  if not storage.wreck then return sent end
-  for number, queue in pairs(storage.wreck) do
-    local unit, best, best_entry, best_key, best_d
-    for key, entry in pairs(queue) do
-      local territory = surface.get_territory_for_chunk(entry.chunk)
-      local owner = territory and territory.get_segmented_units()[1]
-      local target = owner and owner.unit_number == number and player_target_in(surface, entry.chunk)
-      if not target or entry.visits >= T("wreck_max_visits") then
-        queue[key] = nil
-      else
-        unit = owner
-        local d = dist(head_of(owner), target.position)
-        if not best_d or d < best_d then best, best_entry, best_key, best_d = target, entry, key, d end
+  for tid, queue in pairs(storage.wreck) do
+    local t = index.get(tid)
+    if not index.alive(t) then
+      storage.wreck[tid] = nil
+    else
+      local best, best_entry, best_d
+      for k, entry in pairs(queue) do
+        local target = index.owner_of_key(k) == tid and player_target_in(surface, entry.chunk)
+        if not target or entry.visits >= T("wreck_max_visits") then
+          queue[k] = nil
+        else
+          local d = dist(head_of(t.unit), target.position)
+          if not best_d or d < best_d then best, best_entry, best_d = target, entry, d end
+        end
       end
-    end
-    if not next(queue) then
-      storage.wreck[number] = nil
-    elseif unit and best and not busy(unit) then
-      unit.set_ai_state({ type = AI.investigating, destination = best.position })
-      best_entry.visits = best_entry.visits + 1
-      sent[number] = true
-      stat("wreck_dispatches")
-      debug_log("Demolisher sent to wreck buildings in chunk " .. best_key)
+      if not next(queue) then
+        storage.wreck[tid] = nil
+      elseif best and not busy(t.unit) then
+        t.unit.set_ai_state({ type = AI.investigating, destination = best.position })
+        best_entry.visits = best_entry.visits + 1
+        sent[tid] = true
+        stat("wreck_dispatches")
+        debug_log("Demolisher sent to wreck buildings")
+      end
     end
   end
   return sent
 end
 
-local function run_vibration_check(surface)
+-- Looks at explored chunks [first, last] and records the loudest one per territory.
+local function sweep_chunks(surface, first, last, loudest)
+  local v = storage.vulcanus
   local threshold = T("vibration_investigate_threshold")
-  -- Loudest explored chunk per territory, found by walking the explored chunks once.
-  local loudest = {}
-  for chunk in surface.get_chunks() do
-    local centre = chunk_centre(chunk)
-    local amount = surface.get_pollution(centre)
-    if amount >= threshold then
-      local territory = surface.get_territory_for_chunk(chunk)
-      if territory then
-        local units = territory.get_segmented_units()
-        local unit = units[1]
-        if unit and unit.valid then
-          local best = loudest[unit.unit_number]
-          if not best or amount > best.amount then
-            loudest[unit.unit_number] = { unit = unit, amount = amount, position = centre }
-          end
-        end
+  for i = first, last do
+    local c = v.explored[i]
+    local tid = index.owner_at(c.x, c.y)
+    if tid then
+      local centre = chunk_centre(c)
+      local amount = surface.get_pollution(centre)
+      if amount >= threshold then
+        local best = loudest[tid]
+        if not best or amount > best.amount then loudest[tid] = { amount = amount, position = centre } end
       end
     end
   end
-  -- Buildings in its own territory come first.
+end
+
+local function dispatch_after_sweep(surface, loudest)
   local wrecking = run_wreck_dispatch(surface)
   local sent = table_size(wrecking)
-  storage.last_investigation = storage.last_investigation or {}
   local cooldown = T("vibration_investigate_cooldown")
-  for number, best in pairs(loudest) do
-    local last = storage.last_investigation[number]
-    if not wrecking[number] and (not last or game.tick - last >= cooldown) and not busy(best.unit) then
-      best.unit.set_ai_state({ type = AI.investigating, destination = best.position })
-      storage.last_investigation[number] = game.tick
+  for tid, best in pairs(loudest) do
+    local t = index.get(tid)
+    local last = storage.last_investigation[tid]
+    if index.alive(t) and not wrecking[tid] and (not last or game.tick - last >= cooldown) and not busy(t.unit) then
+      t.unit.set_ai_state({ type = AI.investigating, destination = best.position })
+      storage.last_investigation[tid] = game.tick
       stat("investigations")
       sent = sent + 1
       debug_log("Demolisher investigates vibration of " .. string.format("%.1f", best.amount))
@@ -1059,69 +1135,255 @@ local function run_vibration_check(surface)
   return sent > 0
 end
 
+-- A full pass at once (the remote run_event("vibration"), for tests).
+local function run_vibration_check(surface)
+  local loudest = {}
+  sweep_chunks(surface, 1, #storage.vulcanus.explored, loudest)
+  return dispatch_after_sweep(surface, loudest)
+end
+
+-- One tick's slice of the pass.
+local function step_vibration_sweep(surface)
+  local v = storage.vulcanus
+  local total = #v.explored
+  local per_tick = math.max(1, math.ceil(total / T("vibration_check_interval")))
+  local sweep = v.sweep
+  if not sweep then
+    sweep = { i = 1, loudest = {} }
+    v.sweep = sweep
+  end
+  local last = math.min(total, sweep.i + per_tick - 1)
+  if sweep.i <= last then sweep_chunks(surface, sweep.i, last, sweep.loudest) end
+  sweep.i = last + 1
+  if sweep.i > total then
+    v.sweep = nil
+    stat("vibration_attempts")
+    profiled("vibration", dispatch_after_sweep, surface, sweep.loudest)
+  end
+end
+
+---------------------------------------------------------------------------------------------------
+-- Set-up. Builds the territory index, records the starting area and the explored chunks, then
+-- starts the clocks. When the mod is added to a save this runs at load time, all at once; when
+-- Vulcanus is created mid-game it runs as a job over several ticks.
+
+-- The starting-area scan: chunk centres first, then the corners of chunks next to ones found, so
+-- only the disc's edge gets the finer sampling.
+local function scan_rows(job, surface, first_row, last_row)
+  local positions, chunks = {}, {}
+  for cx = first_row, last_row do
+    for cy = -SAFE_ZONE_SCAN_RADIUS, SAFE_ZONE_SCAN_RADIUS do
+      positions[#positions + 1] = { cx * 32 + 16, cy * 32 + 16 }
+      chunks[#chunks + 1] = key(cx, cy)
+    end
+  end
+  if #positions == 0 then return end
+  local values = surface.calculate_tile_properties({ "demolisher_starting_area" }, positions)["demolisher_starting_area"]
+  for i, value in ipairs(values) do
+    if value > 0 then job.in_disc[chunks[i]] = true end
+  end
+end
+
+local function refine_edge(job, surface)
+  local positions, chunks = {}, {}
+  local corners = { { 1, 1 }, { 31, 1 }, { 1, 31 }, { 31, 31 } }
+  local seen = {}
+  for k in pairs(job.in_disc) do
+    local x, y = index.unkey(k)
+    for dx = -1, 1 do
+      for dy = -1, 1 do
+        local nk = key(x + dx, y + dy)
+        if not job.in_disc[nk] and not seen[nk] then
+          seen[nk] = true
+          for _, o in ipairs(corners) do
+            positions[#positions + 1] = { (x + dx) * 32 + o[1], (y + dy) * 32 + o[2] }
+            chunks[#chunks + 1] = nk
+          end
+        end
+      end
+    end
+  end
+  if #positions == 0 then return end
+  local values = surface.calculate_tile_properties({ "demolisher_starting_area" }, positions)["demolisher_starting_area"]
+  for i, value in ipairs(values) do
+    if value > 0 then job.in_disc[chunks[i]] = true end
+  end
+end
+
+-- Safe chunks are those in or next to the disc with no territory: generated ones now, ungenerated
+-- ones when they generate (see on_chunk_generated).
+local function decide_safe(job, surface)
+  local safe, count, candidates, seen = {}, 0, {}, {}
+  for k in pairs(job.in_disc) do
+    local x, y = index.unkey(k)
+    for dx = -1, 1 do
+      for dy = -1, 1 do
+        local nk = key(x + dx, y + dy)
+        if not seen[nk] then
+          seen[nk] = true
+          if not index.owner_of_key(nk) then
+            if surface.is_chunk_generated({ x + dx, y + dy }) then
+              safe[nk] = true
+              count = count + 1
+            else
+              candidates[nk] = true
+            end
+          end
+        end
+      end
+    end
+  end
+  return safe, count, candidates
+end
+
+local function new_setup_job(surface)
+  return {
+    surface_index = surface.index,
+    stage = "index",
+    row = -SAFE_ZONE_SCAN_RADIUS,
+    in_disc = {},
+    explored = {},
+    load_time = false,
+  }
+end
+
+-- Runs the next piece of the job; returns true when finished.
+local function step_setup(job, surface, rows)
+  if job.stage == "index" then
+    index.rebuild(surface)
+    job.stage = "scan"
+  elseif job.stage == "scan" then
+    local last = math.min(SAFE_ZONE_SCAN_RADIUS, job.row + rows - 1)
+    scan_rows(job, surface, job.row, last)
+    job.row = last + 1
+    if job.row > SAFE_ZONE_SCAN_RADIUS then job.stage = "refine" end
+  elseif job.stage == "refine" then
+    refine_edge(job, surface)
+    job.stage = "finish"
+  elseif job.stage == "finish" then
+    local safe, count, candidates = decide_safe(job, surface)
+    local explored = job.explored
+    if job.load_time then
+      explored = {}
+      for c in surface.get_chunks() do explored[#explored + 1] = { x = c.x, y = c.y } end
+    end
+    storage.vulcanus = {
+      surface_index = surface.index,
+      initialized_tick = game.tick,
+      safe_chunks = safe,
+      safe_chunk_count = count,
+      safe_candidates = candidates,
+      cleared_chunks = {},
+      cleared_chunk_count = 0,
+      frontier = { list = {}, pos = {} },
+      safe_frontier = { list = {}, pos = {} },
+      reserved = {},
+      explored = explored,
+    }
+    rebuild_frontier()
+    for _, event in ipairs(EVENTS) do storage.last_event[event] = game.tick end
+    schedule_all(surface)
+    if not inert(surface) then
+      if job.load_time then clear_dead_territories(surface) else queue_dead_territories() end
+    end
+    debug_log("Initialized on " .. surface.name .. " with " .. count .. " safe chunks")
+    check_settings()
+    return true
+  end
+  return false
+end
+
+-- Set up now (load time) or start the job (during play).
+local function start_setup(surface, load_time)
+  local job = new_setup_job(surface)
+  job.load_time = load_time
+  storage.index = index.new()
+  if load_time then
+    storage.setup = nil
+    while not step_setup(job, surface, 2 * SAFE_ZONE_SCAN_RADIUS + 1) do end
+  else
+    storage.setup = job
+  end
+end
+
+-- Existing set-up on a configuration change: rebuild the index and derived data, keep the rest.
+local function refresh(surface)
+  local v = storage.vulcanus
+  index.rebuild(surface)
+  v.reserved = v.reserved or {}
+  v.cleared_chunks = v.cleared_chunks or {}
+  v.cleared_chunk_count = v.cleared_chunk_count or 0
+  v.explored = {}
+  for c in surface.get_chunks() do v.explored[#v.explored + 1] = { x = c.x, y = c.y } end
+  v.sweep = nil
+  rebuild_frontier()
+  -- Nests from before schema 4 named their parent by unit number.
+  for _, nest in pairs(storage.nests) do
+    if not nest.parent_tid then
+      nest.parent_tid = index.tid_of_unit(nest.parent_unit_number) or -1
+      nest.force = nest.force or "enemy"
+    end
+  end
+  for _, trip in pairs(storage.trips) do
+    if not trip.tid then trip.tid = index.tid_of_unit(trip.unit_number) end
+  end
+  if not inert(surface) then clear_dead_territories(surface) end
+end
+
 ---------------------------------------------------------------------------------------------------
 -- Lifecycle
 
 local HANDLERS = {
-  expansion = function(surface) return run_expansion(surface) end,
+  expansion = run_expansion,
   growth = run_growth,
   nest = run_nest,
   hatch = run_hatch,
-  vibration = run_vibration_check, -- not a scaled event: runs on its own fixed interval
+  vibration = run_vibration_check,
 }
 
 local function run_event(surface, event)
   stat(event .. "_attempts")
   storage.last_event[event] = game.tick
-  return HANDLERS[event](surface)
-end
-
-local function initialize_vulcanus(surface)
-  local v = storage.vulcanus
-  if v and v.surface_index == surface.index then
-    if not inert(surface) then clear_dead_territories(surface) end
-    return
-  end
-  local safe, count, candidates = record_safe_zone(surface)
-  storage.vulcanus = {
-    surface_index = surface.index,
-    initialized_tick = game.tick,
-    safe_chunks = safe,
-    safe_chunk_count = count,
-    safe_candidates = candidates,
-    cleared_chunks = {},
-    cleared_chunk_count = 0,
-    reserved = {},
-  }
-  for _, event in ipairs(EVENTS) do storage.last_event[event] = game.tick end
-  schedule_all(surface)
-  debug_log("Initialized on " .. surface.name .. " with " .. count .. " safe chunks")
-  if not inert(surface) then clear_dead_territories(surface) end
-  check_settings()
+  return profiled(event, HANDLERS[event], surface)
 end
 
 -- No-enemies mode was turned off: catch up on territories that died meanwhile, restart the clocks.
 local function resume(surface)
-  clear_dead_territories(surface)
+  queue_dead_territories()
   schedule_all(surface)
 end
 
-local function check_vulcanus()
-  if storage.vulcanus and not tracked_surface() then
-    storage.vulcanus = nil
-  end
+-- At load time (on_init, on_configuration_changed).
+local function check_vulcanus_at_load()
+  if storage.vulcanus and not tracked_surface() then storage.vulcanus = nil end
   local surface = game.surfaces[SURFACE_NAME]
-  if surface then initialize_vulcanus(surface) end
+  if not surface then return end
+  storage.setup = nil
+  if storage.vulcanus and storage.vulcanus.surface_index == surface.index and (storage.schema or 0) >= SCHEMA then
+    refresh(surface)
+  else
+    profiled("setup", start_setup, surface, true)
+  end
 end
 
 script.on_init(function()
   setup_storage()
-  check_vulcanus()
+  check_vulcanus_at_load()
+  storage.schema = SCHEMA
 end)
 
 script.on_configuration_changed(function()
+  local old_schema = storage.schema or 0
   setup_storage()
-  check_vulcanus()
+  if storage.vulcanus and old_schema < SCHEMA then
+    -- Older layouts: keep the safe zone, cleared land and nests; rebuild everything derived.
+    storage.schema = SCHEMA
+    local surface = tracked_surface()
+    if surface then refresh(surface) end
+  else
+    check_vulcanus_at_load()
+  end
+  storage.schema = SCHEMA
   local surface = tracked_surface()
   if surface then
     for _, event in ipairs(EVENTS) do
@@ -1133,31 +1395,90 @@ script.on_configuration_changed(function()
   check_settings(resume)
 end)
 
+local function begin_setup_during_play(surface)
+  if storage.vulcanus or storage.setup then return end
+  start_setup(surface, false)
+end
+
 script.on_event(defines.events.on_surface_created, function(event)
   local surface = game.surfaces[event.surface_index]
-  if surface and surface.name == SURFACE_NAME then initialize_vulcanus(surface) end
+  if surface and surface.name == SURFACE_NAME then begin_setup_during_play(surface) end
 end)
 
 script.on_event(defines.events.on_surface_deleted, function(event)
+  if storage.setup and storage.setup.surface_index == event.surface_index then storage.setup = nil end
   if storage.vulcanus and storage.vulcanus.surface_index == event.surface_index then
     storage.vulcanus = nil
+    storage.index = index.new()
     storage.pending = {}
+    storage.clearing = nil
     storage.trips = {}
     storage.nests = {}
     storage.egg_registrations = {}
+    storage.wreck = {}
   end
 end)
 
-script.on_event(defines.events.on_chunk_generated, on_chunk_generated)
+local function on_vulcanus(surface_index)
+  local v = storage.vulcanus
+  if v and v.surface_index == surface_index then return v end
+  return nil
+end
+
+script.on_event(defines.events.on_chunk_generated, function(event)
+  local surface_index = event.surface.index
+  local p = event.position
+  local job = storage.setup
+  if job and job.surface_index == surface_index then
+    job.explored[#job.explored + 1] = { x = p.x, y = p.y }
+    return
+  end
+  local v = on_vulcanus(surface_index)
+  if not v then return end
+  v.explored[#v.explored + 1] = { x = p.x, y = p.y }
+  local k = key(p.x, p.y)
+  if v.safe_candidates[k] then
+    v.safe_candidates[k] = nil
+    if event.surface.get_territory_for_chunk(p) == nil then
+      v.safe_chunks[k] = true
+      v.safe_chunk_count = v.safe_chunk_count + 1
+      frontier_consider(p.x, p.y)
+    end
+  end
+end)
+
+-- The map generator creates territories and demolishers as land is explored.
+script.on_event(defines.events.on_territory_created, function(event)
+  if creating then return end
+  local territory = event.territory
+  if not (territory and territory.valid) then return end
+  local surface_index = territory.surface.index
+  if not (on_vulcanus(surface_index) or (storage.setup and storage.setup.surface_index == surface_index)) then return end
+  index.index_territory(territory)
+end)
+
+script.on_event(defines.events.on_segmented_unit_created, function(event)
+  if creating then return end
+  local unit = event.segmented_unit
+  if not (unit and unit.valid and unit.territory and unit.territory.valid) then return end
+  local surface_index = unit.surface.index
+  if not (on_vulcanus(surface_index) or (storage.setup and storage.setup.surface_index == surface_index)) then return end
+  local tid = index.tid_of_territory(unit.territory) or index.index_territory(unit.territory)
+  if not tid then return end
+  index.set_unit(tid, unit)
+  -- Free land next to the new territory is now on the frontier.
+  if storage.vulcanus then
+    for _, c in pairs(index.get(tid).chunks) do frontier_around(c.x, c.y) end
+  end
+end)
+
 script.on_event(defines.events.on_object_destroyed, on_object_destroyed)
 
 script.on_event(defines.events.on_segmented_unit_died, function(event)
-  queue_territory_check(event.segmented_unit)
   on_unit_gone(event.segmented_unit)
 end)
 
 script.on_event(defines.events.script_raised_destroy_segmented_unit, function(event)
-  queue_territory_check(event.segmented_unit)
   on_unit_gone(event.segmented_unit)
 end)
 
@@ -1171,18 +1492,31 @@ script.on_event(defines.events.on_segmented_unit_damaged, function(event)
 end)
 
 script.on_event(defines.events.on_tick, function(event)
+  local job = storage.setup
+  if job then
+    local surface = game.surfaces[job.surface_index]
+    if not (surface and surface.valid) then
+      storage.setup = nil
+    elseif profiled("setup", step_setup, job, surface, SETUP_ROWS_PER_TICK) then
+      storage.setup = nil
+    end
+    return
+  end
   local surface = tracked_surface()
-  if surface and inert(surface) then return end
-  if next(storage.pending) then process_pending() end
-  if not surface then return end
-  if next(storage.trips) then update_trips(surface) end
-  if event.tick % T("vibration_check_interval") == 0 then run_event(surface, "vibration") end
+  if not surface or inert(surface) then return end
+  if storage.clearing or next(storage.pending) then profiled("pending", process_pending, surface) end
+  if next(storage.trips) then profiled("trips", update_trips, surface) end
+  step_vibration_sweep(surface)
+  -- At most one event per tick; others that are due wait for the next tick.
   local enabled = game.map_settings.enemy_expansion.enabled
   for _, name in ipairs(EVENTS) do
     if event.tick >= (storage.next_event[name] or 0) then
       storage.next_event[name] = event.tick + event_cooldown(surface, name)
       -- Like biters, demolishers don't expand when the map has enemy expansion turned off.
-      if enabled and T(name .. "_enabled") then run_event(surface, name) end
+      if enabled and T(name .. "_enabled") then
+        run_event(surface, name)
+        break
+      end
     end
   end
 end)
@@ -1197,16 +1531,20 @@ end)
 script.on_nth_tick(60, function()
   -- Catches a Vulcanus created where on_surface_created doesn't reach this mod, such as another
   -- mod's on_init.
-  if not tracked_surface() and game.surfaces[SURFACE_NAME] then check_vulcanus() end
+  if not tracked_surface() and not storage.setup then
+    local surface = game.surfaces[SURFACE_NAME]
+    if surface then begin_setup_during_play(surface) end
+  end
   check_settings(resume)
 end)
 
 ---------------------------------------------------------------------------------------------------
--- Remote interface. Reads are for tests and other mods; set_tuning and run_event are for testing.
+-- Remote interface. Reads are for tests and other mods; set_tuning, clear_chunks and run_event
+-- are for testing.
 
 local function copy(t)
   local c = {}
-  for k, v in pairs(t) do c[k] = v end
+  for k, value in pairs(t) do c[k] = value end
   return c
 end
 
@@ -1224,11 +1562,16 @@ remote.add_interface("vulcanus-demolisher-lifecycle", {
     return {
       schema = storage.schema,
       initialized = v ~= nil,
+      setting_up = storage.setup ~= nil,
       surface_index = v and v.surface_index,
       initialized_tick = v and v.initialized_tick,
       safe_chunk_count = v and v.safe_chunk_count or 0,
       safe_candidate_count = v and table_size(v.safe_candidates) or 0,
       cleared_chunk_count = v and v.cleared_chunk_count or 0,
+      frontier_count = v and #v.frontier.list or 0,
+      safe_frontier_count = v and #v.safe_frontier.list or 0,
+      explored_count = v and #v.explored or 0,
+      territory_count = table_size(storage.index and storage.index.terr or {}),
       reserved_chunk_count = v and table_size(v.reserved) or 0,
       pending_checks = table_size(storage.pending or {}),
       cooldowns = cooldowns,
@@ -1263,7 +1606,7 @@ remote.add_interface("vulcanus-demolisher-lifecycle", {
       for _, egg in pairs(nest.eggs) do eggs[#eggs + 1] = { position = egg.position, laid = egg.laid } end
       result[#result + 1] = {
         id = nest.id, site = nest.site, chunk = nest.chunk, parent_unit_number = nest.parent_unit_number,
-        parent_dead = nest.parent_dead or not (nest.parent and nest.parent.valid), eggs = eggs,
+        parent_dead = not index.alive(index.get(nest.parent_tid)), eggs = eggs,
       }
     end
     return result
@@ -1273,9 +1616,9 @@ remote.add_interface("vulcanus-demolisher-lifecycle", {
     local result = {}
     local v = storage.vulcanus
     if not v then return result end
-    for key in pairs(v.safe_chunks) do
-      local x, y = key:match("^(-?%d+),(-?%d+)$")
-      result[#result + 1] = { x = tonumber(x), y = tonumber(y) }
+    for k in pairs(v.safe_chunks) do
+      local x, y = index.unkey(k)
+      result[#result + 1] = { x = x, y = y }
     end
     return result
   end,
@@ -1289,10 +1632,37 @@ remote.add_interface("vulcanus-demolisher-lifecycle", {
   end,
   is_cleared_chunk = function(x, y)
     local v = storage.vulcanus
-    return v ~= nil and v.cleared_chunks[x .. "," .. y] ~= nil
+    return v ~= nil and v.cleared_chunks[key(x, y)] ~= nil
   end,
   is_safe_chunk = function(x, y)
     return is_safe_chunk({ x = x, y = y })
+  end,
+  -- Testing: check the index against the game. Returns a list of problems (empty if consistent).
+  verify_index = function()
+    local surface = tracked_surface()
+    local problems = {}
+    if not surface then return problems end
+    local seen = 0
+    for _, territory in pairs(surface.get_territories()) do
+      seen = seen + 1
+      local tid = index.tid_of_territory(territory)
+      local t = tid and index.get(tid)
+      if not t then
+        problems[#problems + 1] = "territory not indexed"
+      else
+        local chunks = territory.get_chunks()
+        if #chunks ~= t.count then problems[#problems + 1] = "territory " .. tid .. " has " .. #chunks .. " chunks, index " .. t.count end
+        for _, c in pairs(chunks) do
+          if index.owner_at(c.x, c.y) ~= tid then problems[#problems + 1] = "chunk " .. chunk_name(c) .. " owner mismatch"; break end
+        end
+        local unit = territory.get_segmented_units()[1]
+        if (unit and unit.unit_number) ~= t.unit_number then problems[#problems + 1] = "territory " .. tid .. " unit mismatch" end
+      end
+    end
+    if seen ~= table_size(storage.index.terr) then
+      problems[#problems + 1] = "game has " .. seen .. " territories, index " .. table_size(storage.index.terr)
+    end
+    return problems
   end,
   -- Testing: override tuning.lua values, e.g. set_tuning{nest_min_chunks = 10}.
   set_tuning = function(values)
@@ -1305,10 +1675,20 @@ remote.add_interface("vulcanus-demolisher-lifecycle", {
     local surface = tracked_surface()
     if not surface then return end
     surface.set_territory_for_chunks(chunks, nil)
-    for _, chunk in pairs(chunks) do mark_cleared(chunk) end
+    for _, c in pairs(chunks) do
+      local k = key(c.x, c.y)
+      local tid = index.owner_of_key(k)
+      if tid then
+        index.remove_chunk(tid, k)
+        local t = index.get(tid)
+        if t and t.count == 0 then index.drop(tid) end
+      end
+      mark_cleared(c.x, c.y)
+    end
+    for _, c in pairs(chunks) do frontier_consider(c.x, c.y) end
   end,
-  -- Testing: run one event now ("expansion", "growth", "nest", "hatch" or "vibration"). Returns whether it did
-  -- something.
+  -- Testing: run one event now ("expansion", "growth", "nest", "hatch" or "vibration"). Returns
+  -- whether it did something.
   run_event = function(name)
     local surface = tracked_surface()
     if not surface or not HANDLERS[name] then return false end
