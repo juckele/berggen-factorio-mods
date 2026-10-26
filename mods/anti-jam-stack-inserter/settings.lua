@@ -72,3 +72,11 @@ if mods["long_stack_inserter"] then
     },
   })
 end
+
+-- Descriptions that mention the long-handed stack inserter are only used when it's installed.
+if lsi then
+  for _, name in pairs({"anti-jam-stack-inserter-mode", "anti-jam-stack-inserter-colour", "anti-jam-stack-inserter-yellow-hand"}) do
+    local setting = data.raw["string-setting"][name] or data.raw["bool-setting"][name]
+    setting.localised_description = {"mod-setting-description-long-handed." .. name}
+  end
+end
