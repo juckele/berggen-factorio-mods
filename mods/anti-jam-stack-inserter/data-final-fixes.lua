@@ -22,3 +22,17 @@ for _, v in pairs(shared.variants) do
     end
   end
 end
+
+-- The anti-jam stack inserter as the bulk inserter's default upgrade (what an upgrade planner
+-- with no rules does). Left alone if another mod already gave the bulk inserter an upgrade.
+-- The stack inserter itself still has no upgrade or downgrade.
+local bulk_upgrade = settings.startup["anti-jam-stack-inserter-bulk-upgrade"]
+local bulk = data.raw.inserter["bulk-inserter"]
+if bulk_upgrade and bulk_upgrade.value and bulk and data.raw.inserter["anti-jam-stack-inserter"] then
+  if bulk.next_upgrade == nil or bulk.next_upgrade == "" then
+    bulk.next_upgrade = "anti-jam-stack-inserter"
+  else
+    log("Anti-jam Stack Inserter: bulk inserter already upgrades to " .. bulk.next_upgrade .. "; not changing it.")
+  end
+end
+

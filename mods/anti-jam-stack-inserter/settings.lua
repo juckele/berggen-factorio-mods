@@ -27,6 +27,14 @@ data:extend({
     default_value = lsi,
     order = "b-b",
   },
+  {
+    -- Bulk inserter -> anti-jam stack inserter as the default upgrade (empty upgrade planner).
+    type = "bool-setting",
+    name = "anti-jam-stack-inserter-bulk-upgrade",
+    setting_type = "startup",
+    default_value = true,
+    order = "b-c",
+  },
 })
 
 -- Only with the long-handed stack inserter mod installed.

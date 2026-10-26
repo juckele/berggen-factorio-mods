@@ -54,6 +54,14 @@ As distinct item, plus two quick recipes that turn a stack inserter into an anti
 inserter and back. They keep the inserter's quality and don't take quality modules, so can't
 be used to cheese quality.
 
+## Upgrading from bulk inserters
+
+By default the anti-jam stack inserter is the bulk inserter's next upgrade: an upgrade planner
+with no rules set upgrades bulk inserters to anti-jam stack inserters, and downgrades
+anti-jam stack inserters to bulk inserters. Turn off **Bulk inserters upgrade to anti-jam
+stack inserters** to remove that. Stack inserters themselves still don't upgrade or
+downgrade.
+
 ## Colours
 
 A startup setting picks the anti-jam stack inserter's colour: purple, aqua, magenta or black.

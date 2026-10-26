@@ -10,6 +10,10 @@ Date: 2026-10-26
     - "Yellow hand" settings: keep the stack inserter's yellow hand and only recolour the platform and arm,
       like the long-handed stack inserter. On by default for every inserter when that mod is installed;
       off (full recolour) otherwise.
+  Changes:
+    - The anti-jam stack inserter is now the bulk inserter's default upgrade (upgrade planner with no rules),
+      and downgrades to it. Can be turned off with a startup setting. Stack inserters still don't upgrade
+      or downgrade.
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.1
 Date: 2026-10-24
