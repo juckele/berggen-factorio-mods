@@ -212,7 +212,7 @@ player's defences. It's a turret, so it can be automated.
 
 Starting version:
 - [x] *Ping turret* (`demolisher-ping-turret`): an ammo turret kitbashed from the gun turret
-      (player-coloured like other turrets; only its icons are tinted orange), firing a cannon-shell
+      (graphics and icons unchanged until real art exists), firing a cannon-shell
       projectile with the tank cannon's sound. Range 96 (past a demolisher's vision), one shot
       every 15 s, 15 s for a full turn, 20 physical damage per hit (10 after a head's resistance).
 - [x] Built with no priority list, like vanilla turrets. To ping only some sizes, add the size's
@@ -226,7 +226,7 @@ Starting version:
       turret, and closes to 9 tiles in about 40 s.
 
 Open:
-- [ ] Look at it in game: the gun-turret body and the tinted icons are untested visually (headless
+- [ ] Real graphics and icons (it currently looks exactly like a gun turret). Untested visually (headless
       has no graphics). A bigger or different body (rocket turret or artillery parts) may read
       better as a cannon.
 - [ ] Check in game that the three heads show in the turret's priority-target picker.

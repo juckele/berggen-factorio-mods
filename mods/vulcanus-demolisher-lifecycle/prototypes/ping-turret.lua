@@ -2,7 +2,6 @@
 -- little. Kitbashed from the gun turret (body), the cannon shell (projectile, icon) and the
 -- tank cannon (sound). Balance values are placeholders.
 
-local TINT = { r = 0.95, g = 0.62, b = 0.38, a = 1 }
 local RANGE = 96          -- past a demolisher's vision, so it is pinged from out of sight
 local COOLDOWN = 15 * 60  -- one shot every 15 s
 local TURN_TIME = 15 * 60 -- 15 s for a full turn
@@ -13,16 +12,13 @@ data:extend({ { type = "ammo-category", name = "demolisher-ping", hidden_in_fact
 -- Turret
 local turret = table.deepcopy(data.raw["ammo-turret"]["gun-turret"])
 turret.name = "demolisher-ping-turret"
-turret.icons = { { icon = turret.icon, icon_size = turret.icon_size, tint = TINT } }
-turret.icon = nil
 turret.minable = { mining_time = 0.5, result = "demolisher-ping-turret" }
 turret.max_health = 1000
 turret.rotation_speed = 1 / TURN_TIME
 turret.prepare_range = RANGE + 4
 turret.automated_ammo_count = 5
 turret.inventory_size = 1
--- The body keeps the gun turret's graphics untinted, so its mask shows the player's colour like
--- other turrets. Only the icons are tinted, to tell it apart in inventories.
+-- Graphics and icons are the gun turret's and cannon shell's, unchanged, until real art exists.
 local attack = turret.attack_parameters
 attack.type = "projectile"
 attack.ammo_category = "demolisher-ping"
@@ -54,8 +50,6 @@ projectile.action = {
 
 local shell = table.deepcopy(data.raw.ammo["cannon-shell"])
 shell.name = "demolisher-ping-shell"
-shell.icons = { { icon = shell.icon, icon_size = shell.icon_size, tint = TINT } }
-shell.icon = nil
 shell.ammo_category = "demolisher-ping"
 shell.order = "d[cannon-shell]-z[demolisher-ping-shell]"
 shell.ammo_type = {
@@ -74,8 +68,6 @@ shell.ammo_type = {
 
 local item = table.deepcopy(data.raw.item["gun-turret"])
 item.name = "demolisher-ping-turret"
-item.icons = turret.icons
-item.icon = nil
 item.place_result = "demolisher-ping-turret"
 item.order = "b[turret]-z[demolisher-ping-turret]"
 
@@ -110,9 +102,8 @@ data:extend({
   {
     type = "technology",
     name = "demolisher-ping-turret",
-    icons = {
-      { icon = "__base__/graphics/technology/gun-turret.png", icon_size = 256, tint = TINT },
-    },
+    icon = "__base__/graphics/technology/gun-turret.png",
+    icon_size = 256,
     effects = {
       { type = "unlock-recipe", recipe = "demolisher-ping-turret" },
       { type = "unlock-recipe", recipe = "demolisher-ping-shell" },
