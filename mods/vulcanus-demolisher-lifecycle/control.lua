@@ -852,17 +852,20 @@ end
 --   parent dead                          -> hatchling takes the nest chunk (highest weight)
 --   cleared land next to parent's land   -> hatchling takes the parent chunk next to it
 --   egg old and nowhere better to go     -> hatchling takes a parent chunk on the edge (lowest)
--- With the parent alive the chunk always comes from the parent's edge, never a nest chunk.
+-- With the parent alive the chunk always comes from the parent's edge, and not a nest chunk unless
+-- it is the last egg's own nest chunk.
 -- The hatchling's territory is that one chunk; it grows from there like any other. A parent chunk
 -- is only taken if the parent's territory stays in one piece without it.
 
--- The parent edge chunk nearest the nest that is explored, isn't a nest chunk (this nest's or
--- another's), and can be given away without splitting the parent's territory in two.
-local function nearest_takeable(surface, tid, chunks, position)
+-- The parent edge chunk nearest the nest that is explored, isn't a nest chunk, and can be given
+-- away without splitting the parent's territory in two. `allowed` is a nest chunk key that may be
+-- taken anyway: the nest's own chunk, for its last egg.
+local function nearest_takeable(surface, tid, chunks, position, allowed)
   local reserved = storage.vulcanus.reserved
   local ranked = {}
   for _, c in pairs(chunks) do
-    if not reserved[chunk_key(c)] then
+    local k = chunk_key(c)
+    if not reserved[k] or k == allowed then
       ranked[#ranked + 1] = { c = c, d = dist(chunk_centre(c), position) }
     end
   end
@@ -915,13 +918,15 @@ local function hatch_option(surface, nest, old_enough)
     return T("hatch_weight_dead_parent"), nest.chunk, "dead_parent"
   end
   if t.count <= 1 then return 0 end
+  -- The last egg may take its own nest chunk: the nest goes away with it.
+  local allowed = table_size(nest.eggs) == 1 and nest.chunk_key or nil
   local free = chunks_next_to_free_space(nest.parent_tid)
   if #free > 0 then
-    local chunk = nearest_takeable(surface, nest.parent_tid, free, nest.site)
+    local chunk = nearest_takeable(surface, nest.parent_tid, free, nest.site, allowed)
     if chunk then return T("hatch_weight_free_space"), chunk, "free_space" end
   end
   if not old_enough then return 0 end
-  local chunk = nearest_takeable(surface, nest.parent_tid, edge_chunks(nest.parent_tid), nest.site)
+  local chunk = nearest_takeable(surface, nest.parent_tid, edge_chunks(nest.parent_tid), nest.site, allowed)
   if chunk then return T("hatch_weight_old"), chunk, "old" end
   return 0
 end

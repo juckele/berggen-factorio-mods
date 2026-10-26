@@ -874,9 +874,9 @@ phases["lure-turret-filter-add"] = {
 -- expansion-weighting: a cleared hole at a territory's centre fills before a cleared gap at its
 -- edge.
 local ew = { hole = 0, edge = 0 }
--- hatch-parent-chunk: with its parent alive, a hatchling takes a chunk from the parent's edge, never
--- the nest chunk and never one that splits the parent. Two carved shapes: the nest chunk on a
--- one-chunk-wide neck, and the nest chunk sticking out of a block.
+-- hatch-parent-chunk: with its parent alive, a hatchling takes a chunk from the parent's edge, not
+-- the nest chunk unless it is the nest's last egg, and never one that splits the parent. Two carved
+-- shapes: the nest chunk on a one-chunk-wide neck, and the nest chunk sticking out of a block.
 
 local function connected(chunks)
   local set, start, count = {}, nil, 0
@@ -900,10 +900,10 @@ local function connected(chunks)
 end
 
 -- Carves a demolisher's territory down to `shape` (offsets from the nest chunk), lays one nest
--- with one egg at the nest chunk, hatches it, and checks the parent gave one chunk from its edge.
--- Returns the parent's remaining chunks as a set of "x,y", the nest chunk, or nil if no territory
--- fits. `skip` lists unit numbers to leave alone.
-local function carve_and_hatch(label, shape, skip)
+-- with `eggs` eggs at the nest chunk, hatches one, and checks the parent gave one chunk from its
+-- edge. Returns the parent's remaining chunks as a set of "x,y", the nest chunk and the territory,
+-- or nil if no territory fits. `skip` lists unit numbers to leave alone.
+local function carve_and_hatch(label, shape, skip, eggs)
   local surface = vulcanus()
   local unit, nest_chunk
   for _, u in pairs(surface.get_segmented_units()) do
@@ -933,6 +933,7 @@ local function carve_and_hatch(label, shape, skip)
   remote.call(MOD, "clear_chunks", clear)
   local before = territory.get_chunks()
   H.equal(label .. "-carved-shape", #before, #shape)
+  remote.call(MOD, "set_tuning", { eggs_min = eggs, eggs_max = eggs })
   H.check(label .. "-nest-laid", remote.call(MOD, "place_nest", unit.unit_number, nest_chunk) ~= nil)
   H.equal(label .. "-egg-hatches", run("hatch"), 1)
   local after = territory.get_chunks()
@@ -953,7 +954,7 @@ local function carve_and_hatch(label, shape, skip)
   H.check(label .. "-given-chunk-on-edge", on_edge)
   H.check(label .. "-nest-chunk-kept", still[nest_chunk.x .. "," .. nest_chunk.y] == true)
   skip[unit.unit_number] = true
-  return still, nest_chunk
+  return still, nest_chunk, territory
 end
 
 phases["hatch-parent-chunk-add"] = {
@@ -968,7 +969,8 @@ phases["hatch-parent-chunk-add"] = {
     for _, x in ipairs({ -3, -2, 2, 3 }) do
       for _, y in ipairs({ 0, 1 }) do neck[#neck + 1] = { x, y } end
     end
-    local still, n = carve_and_hatch("neck", neck, skip)
+    -- One egg, so it is the last: still not the neck, since taking it would split the parent.
+    local still, n = carve_and_hatch("neck", neck, skip, 1)
     if still then
       local kept = true
       for _, o in ipairs({ { -1, 0 }, { 1, 0 } }) do
@@ -977,12 +979,21 @@ phases["hatch-parent-chunk-add"] = {
       H.check("neck-not-taken", kept)
     end
     -- Edge: the nest chunk N sticks out of a 2x3 block, nearest the nest and taking it would split
-    -- nothing; the hatchling must still take a block chunk.
+    -- nothing. With two eggs the first must take a block chunk; the last may take N.
     local edge = { { 0, 0 } }
     for _, x in ipairs({ 1, 2 }) do
       for _, y in ipairs({ -1, 0, 1 }) do edge[#edge + 1] = { x, y } end
     end
-    carve_and_hatch("edge", edge, skip)
+    local _, e, territory = carve_and_hatch("edge", edge, skip, 2)
+    if e then
+      H.equal("edge-last-egg-hatches", run("hatch"), 1)
+      local surface = vulcanus()
+      local owner = surface.get_territory_for_chunk(e)
+      H.check("last-egg-takes-nest-chunk", owner ~= nil and owner ~= territory)
+      H.equal("last-egg-parent-gave-one-more", #territory.get_chunks(), #edge - 2)
+      H.check("last-egg-parent-in-one-piece", connected(territory.get_chunks()))
+      H.equal("nest-gone-with-last-egg", state().nest_count, 0)
+    end
     index_ok("index-consistent")
     H.done()
   end,

@@ -21,7 +21,8 @@ Version: 0.2.0
       of 1 to 3 eggs, then return to their patrol. Hurting one while it nests stops it.
     - Eggs hatch into small demolishers with a one-chunk territory: soonest when their parent has died, then when
       there is cleared land next to their parent's territory, otherwise once old. A hatchling with a living parent takes a chunk
-      from the edge of the parent's territory, never the nest chunk, and never one that would split the territory. Eggs can be destroyed.
+      from the edge of the parent's territory, not the nest chunk unless it is the nest's last egg, and never one
+      that would split the territory. Eggs can be destroyed.
     - Expansion, growth, nesting and hatching each follow the map's enemy expansion settings and evolution.
     - Warns in chat when enemy expansion is turned off in the map settings, which the mod needs.
     - Lure turret (after metallurgic science): very long range, very slow, and barely damaging; it lures

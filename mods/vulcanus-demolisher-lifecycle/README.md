@@ -67,8 +67,9 @@ goes back to being player-facing text for the mod portal.
   - cleared land next to the parent's explored land (weight 3): it takes the parent chunk
     bordering it, nearest the nest, with that chunk's patrol route, and finds its own way there;
   - otherwise, once 30 minutes old (weight 1): it takes the parent's edge chunk nearest the nest.
-  In both cases the chunk taken from a living parent is on the parent's edge and is never a nest
-  chunk, and it must leave the parent's territory in one piece: a chunk on a one-chunk-wide neck
+  In both cases the chunk taken from a living parent is on the parent's edge and isn't a nest
+  chunk, except that a nest's last egg may take its own nest chunk (the nest goes with it). It
+  must also leave the parent's territory in one piece: a chunk on a one-chunk-wide neck
   is skipped for the next nearest (`hatch-parent-chunk` test).
   Expansion keeps territories in one piece too: a chunk only goes to a territory that owns a chunk
   beside it.
@@ -215,8 +216,8 @@ Built:
 - [x] Nests: max-size demolishers travel to their territory's centre, coil, lay 1–3 eggs and return
       to patrol (`nests`, `nest-interrupt` tests).
 - [x] Hatching weighted dead parent > free space > old, one chunk per hatchling (`nests` test).
-- [x] With the parent alive, a hatchling takes an edge chunk, never the nest chunk, and never one
-      that splits the parent's territory (`hatch-parent-chunk` test).
+- [x] With the parent alive, a hatchling takes an edge chunk, not a nest chunk unless it is the
+      nest's last egg, and never one that splits the parent's territory (`hatch-parent-chunk` test).
 
 Open:
 - [x] Hatchling arrival: it owns its chunk and patrol route at once and finds its own way there.
