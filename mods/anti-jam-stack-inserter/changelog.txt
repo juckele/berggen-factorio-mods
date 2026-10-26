@@ -25,9 +25,9 @@ Version: 1.0.0
 Date: 2026-10-23
   Features:
     - Anti-jam stack inserter: a stack inserter that swings without waiting for a full hand.
-    - Item mode "Smart swapping" (default startup setting): built from and mined to stack inserter items;
-      place it with an upgrade planner, blueprint, ghost or pipette. Switching a save to it turns existing
-      anti-jam stack inserter items back into stack inserters.
-    - Item mode "Distinct item": its own item with the stack inserter's recipe.
-    - Item mode "Distinct item with quick swap": plus quick conversion recipes between stack and anti-jam
-      stack inserters.
+    - Startup setting "Item mode":
+      - Smart swapping (default): built from and mined to stack inserter items; place it with an upgrade
+        planner, blueprint, ghost or pipette. Switching a save to it turns existing anti-jam stack inserter
+        items back into stack inserters.
+      - Distinct item: its own item with the stack inserter's recipe.
+      - Distinct item with quick swap: plus quick conversion recipes between stack and anti-jam stack inserters.
