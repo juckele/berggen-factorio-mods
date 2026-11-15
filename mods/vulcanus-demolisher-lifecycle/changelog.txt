@@ -2,6 +2,7 @@
 Version: 0.2.0
   Changes:
     - Targets Factorio 2.1.
+    - Placeholder graphics of its own for the lure turret, lure shell, demolisher eggs and nest, and the vibration icon.
     - Killing the last demolisher of a territory turns its land into cleared land, and adding the mod to a save
       does the same for territories whose demolishers were already killed. Exploring cleared land doesn't spawn
       new demolishers.

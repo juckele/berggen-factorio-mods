@@ -2,6 +2,27 @@
 
 - [`upload_mod.py`](#upload_modpy): package and upload a mod to the mod portal.
 - [`headless/`](headless/README.md): run mod test scenarios on headless Factorio; tests live in `tests/<mod>/`.
+- [`sprite-check/`](#sprite-check): check a mod's sprite and icon references against its images, headless.
+- [`placeholder-graphics/`](#placeholder-graphics): scripts that draw a mod's placeholder sprite sheets.
+
+## sprite-check
+
+Headless Factorio never loads images, so a wrong path or frame layout only shows up in the game
+client. `sprite_check.py` runs `factorio --dump-data` with the given mods (plus base and Space
+Age), then checks every reference into those mods: the file exists, and every sprite, animation,
+stripe and icon fits inside its image. It also lists images no prototype uses. Needs Pillow.
+
+```sh
+python3 tools/sprite-check/sprite_check.py --factorio <factorio>/bin/x64/factorio mods/<mod>
+```
+
+## placeholder-graphics
+
+One script per mod that draws its placeholder sprite sheets with Pillow, laid out as the
+prototypes read them. They are deterministic; rerun after changing one and commit the images.
+
+- `vulcanus_demolisher_lifecycle.py`: everything in `mods/vulcanus-demolisher-lifecycle/graphics/`
+  (layouts in that folder's README).
 
 ## upload_mod.py
 

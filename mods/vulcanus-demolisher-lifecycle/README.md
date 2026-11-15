@@ -79,7 +79,7 @@ goes back to being player-facing text for the mod portal.
   biter bases) on the hatchling. Each hatch shrinks the parent by one chunk, so repeated hatching eventually takes a parent under
   the nesting minimum. Destroyed eggs are gone for good; the nest marker disappears with its last
   egg. Eggs show as red dots on the map; the nest marker doesn't show. Nest and egg graphics are
-  placeholders (Vulcanus hot rocks); real art comes later.
+  simple placeholders (see Graphics); real art comes later.
 - **Vibration.** Vulcanus gets its own pollution layer, *vibration* (vanilla Vulcanus has no pollutant).
   Mining drills, pumps and offshore pumps emit it while working (burner drill 6/min, electric drill
   10, big drill 40, pump 3, offshore pump 8; other mods' drills and pumps fall back by type). Lava
@@ -166,6 +166,20 @@ How it stays bounded:
 Profiling: `set_tuning{profile = true}` logs `PROFILE <section> Duration: … tick …` lines to
 `factorio-current.log`; the `perf-*` scenarios take `params.profile`.
 
+## Graphics
+
+All graphics are the mod's own simple placeholders, drawn by
+`tools/placeholder-graphics/vulcanus_demolisher_lifecycle.py` and laid out exactly as the
+prototypes read them, as references for real art. [`graphics/README.md`](graphics/README.md)
+lists every sheet's frame size, layout and alignment. The egg's hit and death debris are still
+the big hot volcanic rock's, and the shell's hit explosion and firing flash are vanilla.
+
+Check sprite references after changing graphics (headless never loads images):
+
+```sh
+python3 tools/sprite-check/sprite_check.py --factorio <factorio>/bin/x64/factorio mods/vulcanus-demolisher-lifecycle
+```
+
 ## Compatibility
 
 - **Map settings or mods that leave Vulcanus land without territory.** The starting area is taken
@@ -239,6 +253,8 @@ Open:
 - [x] Hatchling arrival: it owns its chunk and patrol route at once and finds its own way there.
 - [ ] Free space in unexplored land can't be used: a new territory needs an explored chunk, so the
       egg waits for the old-egg rule instead.
+- [x] Own placeholder graphics for the nest (2 variations) and eggs (4 variations, glow and
+      shadow), with icons (see Graphics).
 - [ ] Real graphics for the nest and eggs, and hatching effects and sound.
 - [x] Eggs show as red dots on the map.
 - [ ] Other ideas from the brainstorm, not planned: bifurcation, births in gaps between two
@@ -268,8 +284,8 @@ Decided: it lures demolishers by hurting them a little, so they come for the tur
 player's defences. It's a turret, so it can be automated.
 
 Starting version:
-- [x] *Lure turret* (`demolisher-lure-turret`): an ammo turret kitbashed from the gun turret
-      (graphics and icons unchanged until real art exists), firing a cannon-shell
+- [x] *Lure turret* (`demolisher-lure-turret`): an ammo turret built on the gun turret's
+      prototype with its own placeholder graphics (see Graphics), firing a cannon-shell-like
       projectile with the tank cannon's sound. Range 96 (past a demolisher's vision), one shot
       every 15 s, 15 s for a full turn, 20 physical damage per hit (10 after a head's resistance).
 - [x] Built with no priority list, like vanilla turrets. To lure only some sizes, add the size's
@@ -283,9 +299,11 @@ Starting version:
       turret, and closes to 9 tiles in about 40 s.
 
 Open:
-- [ ] Real graphics and icons (it currently looks exactly like a gun turret). Untested visually (headless
-      has no graphics). A bigger or different body (rocket turret or artillery parts) may read
-      better as a cannon.
+- [x] Own placeholder graphics: base, raising (4 directions × 5 frames) and shooting (64
+      directions × 2 frames) sheets with player-colour masks and shadows, remnants, projectile,
+      item, ammo and technology icons.
+- [ ] Real graphics and icons. Placeholders are untested visually in game (headless has no
+      graphics); `tools/sprite-check` confirms every reference fits its image.
 - [ ] Check in game that the three heads show in the turret's priority-target picker.
 - [ ] Balance: range, damage, cooldown, turn speed, costs.
 - [ ] Circuit control of the target list.
