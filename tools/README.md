@@ -23,10 +23,9 @@ prototypes read them. They are deterministic; rerun after changing one and commi
 
 - `vulcanus_demolisher_lifecycle.py`: everything in `mods/vulcanus-demolisher-lifecycle/graphics/`
   (layouts in that folder's README).
-- `vulcanus_demolisher_lifecycle_prompts.md`: Nano Banana prompts that turn those placeholders into
-  finished, kitbashed art, job by job, with the vanilla sprites to attach to each.
-- `nano_banana_refs.py`: cuts the current sheets into the reference grids the prompts expect (one
-  image per job, in an aspect ratio the model supports, on magenta).
+
+Finished art for that mod is generated with Nano Banana by an agent: see
+[`art/vulcanus-demolisher-lifecycle/AGENT.md`](../art/vulcanus-demolisher-lifecycle/AGENT.md).
 
 ## upload_mod.py
 

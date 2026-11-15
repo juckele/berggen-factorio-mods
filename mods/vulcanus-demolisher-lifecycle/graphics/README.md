@@ -6,8 +6,9 @@ deterministic). The sheets are laid out exactly as the prototypes read them, so 
 replace any file as long as it keeps the same layout. Check a replacement with
 `tools/sprite-check/sprite_check.py`.
 
-Finished art is planned with Nano Banana: see
-`tools/placeholder-graphics/vulcanus_demolisher_lifecycle_prompts.md`.
+Finished art is generated with Nano Banana by an agent following
+`art/vulcanus-demolisher-lifecycle/AGENT.md`; `repack.py apply` there writes into this folder in
+these layouts.
 
 Conventions:
 - **Resolution.** Entity sheets are high resolution, drawn at `scale = 0.5`: 64 px per tile.
