@@ -10,13 +10,15 @@ goes back to being player-facing text for the mod portal.
 - **Setup.** The mod sets itself up whenever Vulcanus exists: in a new game, when Vulcanus is first
   created, or when the mod is added to a save that has already been to Vulcanus.
 - **Dead territories become cleared land.** In vanilla a territory stays after its last demolisher
-  dies. The mod removes it a tick after its last demolisher dies, and on setup it removes
+  dies. The mod removes it a tick or two after its last demolisher dies (deaths are handled one
+  per tick, and a territory is cleared 48 chunks per tick), and on setup it removes
   territories whose demolishers were already killed. Their chunks are set to "no territory" rather
   than destroyed (`LuaTerritory.destroy()` lets the map generator put a new territory, with a new
   demolisher, on any of those chunks that get explored later), and marked as cleared.
 - **Starting area.** The territory-free starting area is recorded per Vulcanus surface, whether or not
-  protection is on. A chunk counts if it is in or next to the map generator's starting-area disc
-  (`demolisher_starting_area`) and has no territory once generated.
+  protection is on. The map generator gives every chunk a territory except the starting area, so a
+  chunk counts if it has no territory once generated and isn't cleared land. Set-up records the
+  explored ones (before it clears dead territories); later ones join as they are explored.
 - **Four event clocks.** Expansion, growth, nesting and hatching each run on a global clock per
   surface. With the override at 0, each cooldown uses vanilla's biter formula on the map's enemy
   expansion settings, `lerp(max_cooldown, min_cooldown, -e² + 2e)` with `e` the enemy evolution on
@@ -125,13 +127,19 @@ Tests: [`tests/vulcanus-demolisher-lifecycle`](../../tests/vulcanus-demolisher-l
 ## Performance
 
 Targets: a few hundred microseconds per tick on average. No single tick during play should come
-near 16 ms. Set-up when the mod is added or Vulcanus is created may take a slow tick or two. The
-`perf-*` test scenarios measure this on a radius-24 map with 35 territories:
+near 16 ms. A slow set-up tick when the mod is added or Vulcanus is created is acceptable. The
+`perf-*` test scenarios measure this on a radius-24 map with 35 territories (script time of all
+mods, three runs on 2026-11-15):
 
 | Scenario | Avg per tick | Worst tick |
 | --- | --- | --- |
-| `perf-steady`: map-settings timing, evolution 0.5, 5 min | 0.14 ms | 4–10 ms (varies run to run) |
-| `perf-stress`: every clock every 10 ticks, low thresholds | 0.4 ms | 8–12 ms, counting the tick where the test kills 4 demolishers |
+| `perf-setup`: Vulcanus created mid-game | — | mod's set-up 0.1 ms; the creation tick is 16–19 ms, all the game's own surface creation |
+| `perf-steady`: map-settings timing, evolution 0.5, 5 min | 0.07 ms | 1.1–1.7 ms |
+| `perf-stress`: every clock every 10 ticks, low thresholds, 4 kills one per tick | 0.25 ms | 6.6–10.7 ms; most runs' top ticks are 4–6 ms |
+
+The `perf-stress` worst ticks fall on event ticks: expansion (up to 3.9 ms, mostly the game's patrol
+path regeneration), growth (up to 1.5 ms, creating the grown demolisher) and a coiling nester (up to
+3.3 ms) in the same tick. Stress runs every clock about a hundred times faster than map settings.
 
 How it stays bounded:
 - **Territory index (`index.lua`).** The mod keeps its own map of which territory owns each chunk,
@@ -146,7 +154,10 @@ How it stays bounded:
   - A dead territory is cleared 48 chunks per tick.
   - At most one event runs per tick; the others wait a tick.
   - A travelling nester is checked every 10 ticks.
-  - Set-up when Vulcanus is created during play runs over about 12 ticks.
+  - Demolisher deaths are queued and handled one per tick.
+- **Set-up without noise sampling.** The starting area comes from which explored chunks have no
+  territory, not from sampling the `demolisher_starting_area` noise expression. The first noise
+  evaluation on a new surface cost 10–14 ms on its own.
 - **Numeric chunk keys.** Keys are numbers, not `"x,y"` strings. String keys were the largest cost
   in the first version.
 - What remains per-tick is a demolisher coiling while it nests, at about 0.4 ms each. At most 2
@@ -156,6 +167,11 @@ Profiling: `set_tuning{profile = true}` logs `PROFILE <section> Duration: … ti
 `factorio-current.log`; the `perf-*` scenarios take `params.profile`.
 
 ## Compatibility
+
+- **Map settings or mods that leave Vulcanus land without territory.** The starting area is taken
+  to be every explored chunk without territory that isn't cleared land. Anything else that leaves
+  land without territory (a mod, or map generation settings that do) makes that land part of the
+  safe zone.
 
 - **Mods that edit Vulcanus territories.** The mod keeps its own index of territories and
   assumes only it and the map generator change them, for performance. A mod that creates, resizes or
@@ -242,7 +258,8 @@ Open:
 - [x] Recorded on setup even with protection off; protection on by default; turning it on doesn't
       evict (`unprotected` test).
 - [ ] Show the safe zone on the map (optional overlay or chart tags).
-- [ ] Test other seeds and starting-area slider values (the disc moves with the slider).
+- [ ] Test other seeds and starting-area slider values (the starting area moves with the slider;
+      recording it from territory-free chunks should follow it).
 - [x] The player can't extend the safe zone: it is only the original starting area. Land they
       clear and build on stays open to expansion.
 

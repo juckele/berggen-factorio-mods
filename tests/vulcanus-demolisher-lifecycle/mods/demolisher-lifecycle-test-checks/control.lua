@@ -85,7 +85,8 @@ phases["new-game-create"] = {
   end,
 }
 
-local SETUP = 20
+-- Tick by which set-up has run (it runs on the tick Vulcanus is created).
+local SETUP = 2
 
 phases["new-game-run"] = {
   ticks = function()
@@ -95,13 +96,10 @@ phases["new-game-run"] = {
       surface.request_to_generate_chunks({ 0, 0 }, 12)
       surface.force_generate_chunk_requests()
     end)
-    -- Set-up is spread over a few ticks when Vulcanus is created during play.
-    H.at(2, function() H.check("setting-up", state().setting_up) end)
     H.at(SETUP, function()
       check_initialized("on-surface-created")
       local s = state()
-      H.check("initialized-within-setup-ticks", s.initialized_tick and s.initialized_tick - 1 < SETUP,
-        tostring(s.initialized_tick and s.initialized_tick - 1) .. " ticks")
+      H.equal("initialized-on-creation-tick", s.initialized_tick, game.tick - 1)
       -- Pick a demolisher outside the starting area, nearest the spawn.
       local best, best_d
       for _, unit in pairs(vulcanus().get_segmented_units()) do
@@ -1160,34 +1158,35 @@ phases["perf-stress-add"] = {
     H.info("hotspots", add_hotspots(12))
   end,
   ticks = function()
-    H.at(3000, function()
-      local killed = 0
-      for _, unit in pairs(vulcanus().get_segmented_units()) do
-        if killed < 4 and #unit.territory.get_chunks() > 1 then unit.die(); killed = killed + 1 end
-      end
-    end)
+    -- Four kills, one per tick: a demolisher's death is a big fight, so more than one per tick is
+    -- not expected in play.
+    for i = 0, 3 do
+      H.at(3000 + i, function()
+        for _, unit in pairs(vulcanus().get_segmented_units()) do
+          if #unit.territory.get_chunks() > 1 then unit.die(); return end
+        end
+      end)
+    end
     perf_report(11990)
   end,
 }
 
--- The one-off setup when Vulcanus is created mid-game runs inside a tick, so it's measured here.
--- Vulcanus is created in the create step, so the engine's own surface creation stays out of the
--- measured ticks; the mod's set-up job runs during them.
+-- The one-off setup when Vulcanus is created mid-game runs inside the creation tick, so it's
+-- measured here (report only). That tick also holds the engine's own surface creation; the
+-- mod's share is in the "setup" PROFILE line with params.profile.
 phases["perf-setup-run"] = {
   ticks = function()
+    H.at(5, function()
+      game.planets.vulcanus.create_surface()
+      H.check("initialized-on-creation-tick", state().initialized)
+    end)
     H.at(100, function()
       H.check("initialized", state().initialized)
       H.done()
     end)
   end,
 }
-phases["perf-setup-create"] = {
-  tuning = { profile = PROFILE },
-  init = function()
-    game.planets.vulcanus.create_surface()
-    H.done()
-  end,
-}
+phases["perf-setup-create"] = { tuning = { profile = PROFILE }, init = function() H.done() end }
 
 ---------------------------------------------------------------------------------------------------
 -- killed: demolishers were killed before the mod was added.

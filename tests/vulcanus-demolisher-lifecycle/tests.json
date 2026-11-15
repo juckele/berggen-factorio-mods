@@ -334,7 +334,7 @@
     },
     {
       "name": "perf-setup",
-      "description": "Performance: the ticks after Vulcanus is created, while the mod sets up (territory index, safe zone, clocks).",
+      "description": "Performance: the tick in which Vulcanus is created and the mod sets up (territory index, safe zone, clocks). Report only.",
       "steps": [
         { "phase": "perf-setup-create", "create": { "seed": 12345 }, "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-checks"], "expect_done": true },
         { "phase": "perf-setup-run", "benchmark": 120, "mods": ["vulcanus-demolisher-lifecycle", "demolisher-lifecycle-test-checks"], "expect_done": true,
