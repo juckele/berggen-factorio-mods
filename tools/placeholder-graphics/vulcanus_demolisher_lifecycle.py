@@ -52,15 +52,28 @@ class Canvas:
     def _p(self, pts):
         return [(x * SS, y * SS) for x, y in pts]
 
+    def _draw(self, colours, fn):
+        """Draws with fn(draw). ImageDraw replaces pixels, so a translucent colour would punch a
+        see-through hole: those are drawn on a layer and blended. Fully transparent colours still
+        replace (used to cut masks)."""
+        if any(c is not None and len(c) == 4 and 0 < c[3] < 255 for c in colours):
+            layer = Image.new("RGBA", self.img.size, (0, 0, 0, 0))
+            fn(ImageDraw.Draw(layer))
+            self.img.alpha_composite(layer)
+        else:
+            fn(self.d)
+
     def ellipse(self, cx, cy, rx, ry, fill, outline=None, width=0):
-        self.d.ellipse([(cx - rx) * SS, (cy - ry) * SS, (cx + rx) * SS, (cy + ry) * SS],
-                       fill=fill, outline=outline, width=int(width * SS))
+        box = [(cx - rx) * SS, (cy - ry) * SS, (cx + rx) * SS, (cy + ry) * SS]
+        self._draw((fill, outline), lambda d: d.ellipse(box, fill=fill, outline=outline, width=int(width * SS)))
 
     def polygon(self, pts, fill, outline=None, width=0):
-        self.d.polygon(self._p(pts), fill=fill, outline=outline, width=int(width * SS))
+        pts = self._p(pts)
+        self._draw((fill, outline), lambda d: d.polygon(pts, fill=fill, outline=outline, width=int(width * SS)))
 
     def line(self, pts, fill, width):
-        self.d.line(self._p(pts), fill=fill, width=max(1, int(width * SS)), joint="curve")
+        pts = self._p(pts)
+        self._draw((fill,), lambda d: d.line(pts, fill=fill, width=max(1, int(width * SS)), joint="curve"))
 
     def shaded_ellipse(self, cx, cy, rx, ry, dark, light, steps=10):
         """An ellipse lit from the top left."""
@@ -457,8 +470,8 @@ def vibration_icon():
     c.ellipse(32, 44, 9, 5, LAVA + (255,))
     for i, r in enumerate((16, 24, 31)):
         alpha = 255 - i * 60
-        c.d.arc([(32 - r) * SS, (44 - r * 0.7) * SS, (32 + r) * SS, (44 + r * 0.7) * SS],
-                start=200, end=340, fill=LAVA + (alpha,), width=int(4 * SS))
+        box = [(32 - r) * SS, (44 - r * 0.7) * SS, (32 + r) * SS, (44 + r * 0.7) * SS]
+        c._draw((LAVA + (alpha,),), lambda d: d.arc(box, start=200, end=340, fill=LAVA + (alpha,), width=int(4 * SS)))
     return c.image()
 
 

@@ -6,6 +6,9 @@ deterministic). The sheets are laid out exactly as the prototypes read them, so 
 replace any file as long as it keeps the same layout. Check a replacement with
 `tools/sprite-check/sprite_check.py`.
 
+Finished art is planned with Nano Banana: see
+`tools/placeholder-graphics/vulcanus_demolisher_lifecycle_prompts.md`.
+
 Conventions:
 - **Resolution.** Entity sheets are high resolution, drawn at `scale = 0.5`: 64 px per tile.
 - **View.** Factorio's top-down view, ground squashed vertically (about 0.72), lit from the top
