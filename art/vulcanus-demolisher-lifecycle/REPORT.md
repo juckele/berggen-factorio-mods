@@ -41,3 +41,21 @@ None.
 - **Lure turret (`preview.png` and in-game):** Check the turret collar ring at south/south-west headings in game—in `preview.png`, a faint ~1 px dark-blue fringe appears along the shadowed front edge of the collar where `split_mask` stops thresholding dark cyan (`v <= 0.12` or `s <= 0.3`), and verify smooth rotation/recoil/raising animation transitions across all 64 firing directions.
 - **Eggs and nests:** Verify the glow intensity of egg seams (`demolisher-egg-glow.png`) and nest fissures against Vulcanus terrain, and check whether `nest-2` needs more distinct outer rock variation from `nest-1` when multiple nests sit side by side.
 - **Icons and technology:** Check the `lure-turret` item icon (`64x64`, slight framing offset) and `lure-turret` technology icon (`256x256`) in the crafting and tech UI.
+
+## Follow-up review (Claude, 2026-11-16)
+
+- **All 17 approved images re-checked:** every one passes `repack.py check`.
+- **Repack fixes,** then `apply` was re-run from the same approved images:
+  - **Head shadows** now land on the ground below the base. They used to float above and to the
+    right of the turret, because the head is drawn 44 px above the ground.
+  - **Player-colour collar:** the blue edge fringe is now absorbed into the mask.
+  - **Shadows inside their frames:** the ground line is kept inside each shadow frame. South-facing
+    raising frames had lost up to 6 px.
+- **Pipeline changes from this run's notes:**
+  - `kit.py --pack` packs each job's attachments into at most 3 images.
+  - The checker accepts the nearest supported aspect ratio (within 8%).
+- **Vanilla paths left unchanged:** the game's own 2.1.23 sprite metadata loads
+  `foundry-base.png`, `vulcanus-rocks/vulcanus-rock-big-N.png` and
+  `icons/big-volcanic-rock-hot.png`, so the substitute paths noted above may come from a different
+  layout on that machine. The agent instructions now say to list missing references, not
+  substitute them.

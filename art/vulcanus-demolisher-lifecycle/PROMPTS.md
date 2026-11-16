@@ -20,9 +20,10 @@ and textures from the references over inventing new ones.
 The FIRST attached image is the layout: a grid with exactly what goes in each cell. Keep the same
 grid, the same number of cells, each object centred in its cell at the same position and size as
 in the layout, and the same facing direction and pose per cell. Replace the layout's flat shapes
-with finished art; don't move, resize, rotate, add or remove anything. Any further attached
-images that are earlier approved results of this same project define the design: match them
-exactly.
+with finished art; don't move, resize, rotate, add or remove anything. The other attached images
+are reference sheets: one with a magenta background collects earlier approved results of this
+same project, which define the design (match them exactly); one with a grey background collects
+vanilla Factorio sprites, for the style and the parts to kitbash from.
 
 Output rules:
 - Background: flat, uniform pure magenta #FF00FF everywhere that isn't the object. No gradient,

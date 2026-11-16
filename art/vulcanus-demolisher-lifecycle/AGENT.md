@@ -25,9 +25,12 @@ Everything you need is in this folder (`art/vulcanus-demolisher-lifecycle/`):
 - **Prompts:** use each job's prompt exactly as given in its manifest. You may append a short
   correction paragraph when regenerating (see the loop), but never remove or reword the given
   text.
-- **Attachments:** attach the images in the manifest's order. The layout grid is always first.
-- **Aspect ratio:** always ask for the manifest's aspect ratio, and the largest output size the
-  tool offers. Use Nano Banana Pro if you can choose; otherwise the default image model.
+- **Attachments:** attach exactly the images `kit.py --pack <job>` prints, in that order (at most 3:
+  the layout first). Don't build your own composites.
+- **Aspect ratio:** ask for the manifest's aspect ratio, and the largest output size the tool
+  offers. If the tool doesn't offer that ratio, use the nearest one it has and save the result
+  as it comes; `check` and `apply` resize it themselves. Use Nano Banana Pro if you can choose;
+  otherwise the default image model.
 - **Git:** don't push and don't open pull requests. Commit locally at the end (see Finish).
 - **When to stop and ask:** only for the problems listed under "Stop and ask". Everything else
   you decide yourself and record in the report.
@@ -47,7 +50,9 @@ Everything you need is in this folder (`art/vulcanus-demolisher-lifecycle/`):
    macOS `factorio.app/Contents/MacOS/factorio`); it's used for the final check.
 3. Build the kit from the repository root:
    `python3 art/vulcanus-demolisher-lifecycle/kit.py --factorio-data "<data folder>"`.
-   It must finish without "Missing vanilla references".
+   If it reports missing vanilla references, first check you have the right `data/` folder.
+   If files are still missing, carry on without them and list them in the report; don't
+   substitute other files.
 4. Run `python3 art/vulcanus-demolisher-lifecycle/kit.py --list` to see the jobs in order and
    which are already approved. Approved images live in `art/vulcanus-demolisher-lifecycle/approved/`;
    skip those jobs (this lets you resume).
@@ -57,9 +62,10 @@ Everything you need is in this folder (`art/vulcanus-demolisher-lifecycle/`):
 Each job's folder is `art/vulcanus-demolisher-lifecycle/kit/NN-<job>/`. Read its `manifest.json`.
 1. **Check prerequisites.** Every `approved/...` path in `attachments` must exist. They do if you
    go in order.
-2. **Generate.** Call the image tool with:
+2. **Generate.** Run `python3 art/vulcanus-demolisher-lifecycle/kit.py --pack <job>`, then call
+   the image tool with:
    - the manifest's `prompt`;
-   - all `attachments`, in order;
+   - the images it printed, in order;
    - the manifest's `aspect_ratio`.
 
    Save the result as `art/vulcanus-demolisher-lifecycle/work/<job>/attempt-N.png`, with N

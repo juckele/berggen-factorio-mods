@@ -46,6 +46,7 @@ class Slot:
     glow: Frame = None
     shadow: Frame = None
     flat_shadow: bool = False
+    float_px: int = 0        # how far the bottom of the object is above the ground, in frame px
 
 
 @dataclass
@@ -82,9 +83,10 @@ and textures from the references over inventing new ones.
 The FIRST attached image is the layout: a grid with exactly what goes in each cell. Keep the same
 grid, the same number of cells, each object centred in its cell at the same position and size as
 in the layout, and the same facing direction and pose per cell. Replace the layout's flat shapes
-with finished art; don't move, resize, rotate, add or remove anything. Any further attached
-images that are earlier approved results of this same project define the design: match them
-exactly.
+with finished art; don't move, resize, rotate, add or remove anything. The other attached images
+are reference sheets: one with a magenta background collects earlier approved results of this
+same project, which define the design (match them exactly); one with a grey background collects
+vanilla Factorio sprites, for the style and the parts to kitbash from.
 
 Output rules:
 - Background: flat, uniform pure magenta #FF00FF everywhere that isn't the object. No gradient,
@@ -238,12 +240,16 @@ def whole_turret(direction):
 # Slots
 
 T = "entity/lure-turret/"
+# The head is drawn 44 px higher than the base (shifts -24 and -2 game px, doubled here): its
+# shadow falls that far below it.
+HEAD_FLOAT = 44
 
 
 def shooting_slot(stripe, col, row):
     return Slot(Frame(f"{T}lure-turret-shooting-{stripe}.png", 160, 160, col, row),
                 mask=Frame(f"{T}lure-turret-shooting-mask-{stripe}.png", 160, 160, col, row),
-                shadow=Frame(f"{T}lure-turret-shooting-shadow-{stripe}.png", 208, 160, col, row))
+                shadow=Frame(f"{T}lure-turret-shooting-shadow-{stripe}.png", 208, 160, col, row),
+                float_px=HEAD_FLOAT)
 
 
 BASE_SLOT = Slot(Frame(f"{T}lure-turret-base.png", 160, 160),
@@ -321,7 +327,7 @@ JOBS.append(Job(
     name="turret-raising", aspect="5:4", size=(1280, 1024), grid=(5, 4),
     slots=[Slot(Frame(f"{T}lure-turret-raising.png", 160, 160, k, d),
                 mask=Frame(f"{T}lure-turret-raising-mask.png", 160, 160, k, d),
-                shadow=Frame(f"{T}lure-turret-raising-shadow.png", 208, 160, k, d))
+                shadow=Frame(f"{T}lure-turret-raising-shadow.png", 208, 160, k, d), float_px=HEAD_FLOAT)
            for d in range(4) for k in range(5)],
     player_colour=True, prompt=TURRET_RAISING, depends=["turret-design", "turret-shooting-1-idle"],
     vanilla=[V_GUN_RAISING],

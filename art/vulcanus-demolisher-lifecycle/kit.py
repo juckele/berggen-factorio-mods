@@ -13,6 +13,14 @@ kit/<job>/manifest.json:
   results of earlier jobs, then vanilla references), prompt (the full prompt text), output (where
   the approved image goes).
 Approved results are listed even before they exist; they must exist when the job runs.
+
+Image tools often take only a few attachments (Gemini's takes 3), so before generating a job run
+
+    python3 art/vulcanus-demolisher-lifecycle/kit.py --pack JOB
+
+It packs the job's attachments into at most 3 images in its kit folder and prints their paths:
+the layout, one sheet of the approved results it depends on (if any), and one sheet of the
+vanilla references.
 """
 
 import argparse
@@ -70,6 +78,46 @@ def rel(path):
     return str(path.relative_to(J.REPO))
 
 
+def contact_sheet(images, background, max_side=2048, gap=16):
+    """Images side by side in a near-square grid, each scaled to fit its tile."""
+    cols = max(1, round(len(images) ** 0.5 + 0.49))
+    rows = -(-len(images) // cols)
+    tile = (max_side - gap * (cols + 1)) // cols
+    out = Image.new("RGB", (cols * tile + gap * (cols + 1), rows * tile + gap * (rows + 1)), background)
+    for i, img in enumerate(images):
+        img = img.convert("RGB")
+        k = min(tile / img.width, tile / img.height)
+        img = img.resize((max(1, round(img.width * k)), max(1, round(img.height * k))), Image.LANCZOS)
+        x = gap + (i % cols) * (tile + gap) + (tile - img.width) // 2
+        y = gap + (i // cols) * (tile + gap) + (tile - img.height) // 2
+        out.paste(img, (x, y))
+    return out
+
+
+def pack(name):
+    """The job's attachments as at most 3 images; returns their paths."""
+    job = J.BY_NAME[name]
+    n = J.JOBS.index(job) + 1
+    d = J.KIT / f"{n:02d}-{name}"
+    manifest = json.loads((d / "manifest.json").read_text())
+    paths = [J.REPO / p for p in manifest["attachments"]]
+    approved = [p for p in paths if p.parent == J.APPROVED]
+    missing = [p for p in approved if not p.exists()]
+    if missing:
+        sys.exit("approve these first: " + ", ".join(p.stem for p in missing))
+    vanilla = [p for p in paths[1:] if p.parent != J.APPROVED]
+    out = [paths[0]]
+    if approved:
+        sheet = d / "packed-approved.png"
+        contact_sheet([Image.open(p) for p in approved], (255, 0, 255)).save(sheet)
+        out.append(sheet)
+    if vanilla:
+        sheet = d / "packed-references.png"
+        contact_sheet([Image.open(p) for p in vanilla], (128, 128, 128)).save(sheet)
+        out.append(sheet)
+    return out
+
+
 def build(data_dir):
     if J.KIT.exists():
         shutil.rmtree(J.KIT)
@@ -125,7 +173,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--factorio-data", type=lambda p: __import__("pathlib").Path(p).expanduser())
     ap.add_argument("--list", action="store_true", help="print the jobs in order and exit")
+    ap.add_argument("--pack", metavar="JOB", help="pack JOB's attachments into at most 3 images and print them")
     args = ap.parse_args()
+    if args.pack:
+        for p in pack(args.pack):
+            print(rel(p))
+        return 0
     if args.list:
         for n, job in enumerate(J.JOBS, 1):
             done = (J.APPROVED / f"{job.name}.png").exists()

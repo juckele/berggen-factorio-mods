@@ -54,10 +54,15 @@ def hsv(img):
     return a[..., 0] * 360 / 255, a[..., 1] / 255, a[..., 2] / 255
 
 
-def cyan_pixels(img):
+def cyan_pixels(img, fringe=False):
     h, s, v = hsv(img)
     alpha = np.asarray(img)[..., 3] > 40
-    return alpha & (h > 160) & (h < 205) & (s > 0.3) & (v > 0.12)
+    core = alpha & (h > 160) & (h < 205) & (s > 0.3) & (v > 0.12)
+    if not fringe or not core.any():
+        return core
+    # Edges where the cyan darkens or blends toward blue belong to the same area.
+    near = np.asarray(Image.fromarray(core.astype(np.uint8) * 255).filter(ImageFilter.MaxFilter(5))) > 0
+    return core | (near & alpha & (h > 150) & (h < 265) & (s > 0.15))
 
 
 def hot_pixels(img):
@@ -75,7 +80,7 @@ def purple_pixels(img):
 def split_mask(img):
     """Cyan -> (main with neutral grey there, greyscale mask)."""
     arr = np.asarray(img).astype(np.float32).copy()
-    sel = cyan_pixels(img)
+    sel = cyan_pixels(img, fringe=True)
     _, _, v = hsv(img)
     grey = (v * 255 * 0.8)[sel]
     arr[sel, 0] = grey
@@ -104,19 +109,20 @@ def flat_shadow_of(img, size):
     return out
 
 
-def shadow_of(img, size):
+def shadow_of(img, size, float_px=0):
     """Silhouette projected onto the ground to the right (light from the upper left), in a frame of
-    `size` whose left edge lines up with img's."""
+    `size` whose left edge lines up with img's. The ground is float_px below the object's lowest
+    point (for a turret head, which is drawn above its base)."""
     alpha = img.getchannel("A").point(lambda a: 255 if a > 80 else 0)
     bbox = alpha.getbbox()
     out = Image.new("RGBA", size, (0, 0, 0, 0))
     if not bbox:
         return out
-    yb = bbox[3]
-    kv, s = 0.5, 0.9   # vertical squash toward the base, rightward shear
-    canvas = Image.new("L", size, 0)
+    yg = min(bbox[3] + float_px, size[1] - 4)   # the ground line stays inside the frame
+    kv, s = 0.5, 0.6 if float_px else 0.9   # vertical squash toward the ground, rightward shear
+    canvas = Image.new("L", (size[0], max(size[1], yg + 1)), 0)
     canvas.paste(alpha, (0, 0))
-    projected = canvas.transform(size, Image.AFFINE, (1, s / kv, -s * yb / kv, 0, 1 / kv, yb * (1 - 1 / kv)),
+    projected = canvas.transform(size, Image.AFFINE, (1, s / kv, -s * yg / kv, 0, 1 / kv, yg * (1 - 1 / kv)),
                                  resample=Image.BILINEAR)
     projected = projected.filter(ImageFilter.GaussianBlur(1.5))
     out.putalpha(projected)
@@ -209,8 +215,10 @@ def check(job, img):
                         f"(need {job.min_background:.0%}): background not pure #FF00FF?")
     w, h = img.size
     want = job.size[0] / job.size[1]
-    if abs(w / h - want) > 0.03:
-        problems.append(f"aspect ratio {w}x{h} is not {job.aspect}")
+    # A tool without the job's ratio may use the nearest one: the image is resized to the job's
+    # size, which undoes the stretch the model applied when following the layout.
+    if abs(w / h - want) / want > 0.08:
+        problems.append(f"aspect ratio {w}x{h} is too far from {job.aspect}")
     return dict(job=job.name, passed=not problems, problems=problems, cells=rows,
                 magenta_background=round(float(magenta_share), 3), image_size=[w, h])
 
@@ -233,6 +241,7 @@ def apply(job, img):
         s.paste(Image.new("RGBA", (frame.w, frame.h), (0, 0, 0, 0)), box[:2])
         s.paste(image.crop((0, 0, frame.w, frame.h)), box[:2])
 
+    clipped = []
     for slot, f in zip(job.slots, frames):
         if slot is None:
             continue
@@ -246,10 +255,17 @@ def apply(job, img):
             put(slot.glow, glow_of(f))
         if slot.shadow:
             make = flat_shadow_of if slot.flat_shadow else shadow_of
-            put(slot.shadow, make(main, (slot.shadow.w, slot.shadow.h)))
+            size = (slot.shadow.w, slot.shadow.h)
+            shadow = make(main, size) if slot.flat_shadow else make(main, size, slot.float_px)
+            box = shadow.getbbox()
+            if box and (box[2] >= size[0] or box[3] >= size[1]):
+                clipped.append(slot.shadow.rel)
+            put(slot.shadow, shadow)
         put(slot.main, main)
     for rel, img_ in sheets.items():
         img_.save(J.GRAPHICS / rel, optimize=True)
+    if clipped:
+        print(f"  note: {len(clipped)} shadow frame(s) reach the frame edge and are cut off")
     return sorted(sheets)
 
 
